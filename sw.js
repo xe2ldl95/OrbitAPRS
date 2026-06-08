@@ -1,9 +1,10 @@
-const CACHE_NAME = 'orbitaprs-v1.8';
+const CACHE_NAME = 'orbitaprs-v1.9';
 const ASSETS = [
     'index.html',
     'manifest.json',
     'js/app.js',
     'js/ui.js',
+    'js/nav.js',
     'js/satellite.js',
     'js/satellite-lib.js',
     'js/aprs.js',
@@ -37,15 +38,14 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
     event.respondWith(
-        caches.match(event.request).then((cached) => {
-            const fetchAndCache = fetch(event.request).then((response) => {
+        fetch(event.request)
+            .then((response) => {
                 if (response && response.status === 200 && response.type === 'basic') {
                     const clone = response.clone();
                     caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
                 }
                 return response;
-            }).catch(() => cached);
-            return cached || fetchAndCache;
-        })
+            })
+            .catch(() => caches.match(event.request))
     );
 });
