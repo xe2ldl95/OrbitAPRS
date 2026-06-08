@@ -1,19 +1,18 @@
 const CACHE_NAME = 'orbitaprs-v1.8';
 const ASSETS = [
-    '/',
-    '/index.html',
-    '/manifest.json',
-    '/js/app.js',
-    '/js/ui.js',
-    '/js/satellite.js',
-    '/js/satellite-lib.js',
-    '/js/aprs.js',
-    '/js/tnc.js',
-    '/js/logging.js',
-    '/js/map.js',
-    '/css/style.css',
-    '/icons/icon-192.png',
-    '/icons/icon-512.png',
+    'index.html',
+    'manifest.json',
+    'js/app.js',
+    'js/ui.js',
+    'js/satellite.js',
+    'js/satellite-lib.js',
+    'js/aprs.js',
+    'js/tnc.js',
+    'js/logging.js',
+    'js/map.js',
+    'css/style.css',
+    'icons/icon-192.png',
+    'icons/icon-512.png',
 ];
 
 self.addEventListener('install', (event) => {
