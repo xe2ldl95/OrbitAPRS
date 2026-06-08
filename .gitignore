@@ -1,0 +1,5 @@
+node_modules/
+.opencode/
+*.zip
+*.rar
+bridge2.log

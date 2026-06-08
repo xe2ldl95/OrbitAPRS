@@ -1,0 +1,498 @@
+const DEFAULT_MACROS = [
+    { id: 'm0', name: 'CQ',  icon: '📡', template: ':%M:%G CQ via %S{%N',              logQSO: false },
+    { id: 'm1', name: 'Rpt', icon: '📻', template: ':%C:599{%N',                     logQSO: true  },
+    { id: 'm2', name: '73',  icon: '💬', template: ':%C:QSL TU 73{%N',               logQSO: true  },
+    { id: 'm3', name: 'Msg', icon: '✉️', template: ':%C:Hello via %S{%N',            logQSO: false },
+    { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}/{lon}^Sat',               logQSO: false },
+];
+
+var compassHeading = null;
+var compassRaw = { alpha: null, beta: null, gamma: null, webkit: null };
+var _compassDeviceListenerAdded = false;
+var _sensorActive = false;
+
+const state = {
+    myCall: 'N0CALL',
+    myGrid: 'FN42',
+    txFreq: 145.825,
+    digipath: 'ARISS',
+    myLat: 42.0,
+    myLon: -71.0,
+    myAlt: 50,
+    selectedSat: null,
+    qsoLog: [],
+    pendingQSOs: [],
+    tncType: 'serial',
+    tncBaud: '57600',
+    logLines: 300,
+    autoQSO: true,
+    tocall: 'APZ100',
+    rstDefault: '59',
+    msgIdCounter: 0,
+    lastTLEUpdate: null,
+    heardStations: [],
+    macros: DEFAULT_MACROS.map(m => ({...m})),
+    satFreqOverrides: {},
+    elevationOffset: 0,
+    tnc: null,
+    userSatellites: [],
+    mapShowHeardSat: true,
+    mapShowHeardTer: true,
+    mapShowQSO: true,
+    mapShowSat: true,
+    mapColorHeardSat: '#3498db',
+    mapColorHeardTer: '#f0a030',
+    mapColorQSO: '#2ecc71',
+    mapColorSat: '#aaaaaa',
+    termColorTx: '#f0a030',
+    termColorRx: '#00e676',
+    termColorEcho: '#008844',
+    termColorOwn: '#3b9fd4',
+};
+
+function computeHeading(alpha, beta, gamma) {
+    var a = alpha * Math.PI / 180;
+    var b = beta * Math.PI / 180;
+    var g = gamma * Math.PI / 180;
+    var heading = Math.atan2(
+        Math.sin(a) * Math.cos(g) + Math.cos(a) * Math.sin(b) * Math.sin(g),
+        Math.cos(a) * Math.cos(b)
+    );
+    return (heading * 180 / Math.PI + 360) % 360;
+}
+
+function startCompassListener() {
+    if (_compassDeviceListenerAdded) return;
+    _compassDeviceListenerAdded = true;
+    window.addEventListener('deviceorientationabsolute', function(e) {
+        compassRaw.alpha = e.alpha;
+        compassRaw.beta = e.beta;
+        compassRaw.gamma = e.gamma;
+        if (e.alpha !== null && e.alpha !== undefined) {
+            compassHeading = (360 - e.alpha) % 360;
+            _sensorActive = true;
+        }
+    }, { passive: true });
+    window.addEventListener('deviceorientation', function(e) {
+        compassRaw.alpha = e.alpha;
+        compassRaw.beta = e.beta;
+        compassRaw.gamma = e.gamma;
+        compassRaw.webkit = e.webkitCompassHeading;
+        if (_sensorActive) return;
+        if (e.alpha === null || e.alpha === undefined) return;
+        if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+            compassHeading = e.webkitCompassHeading;
+        } else if (e.beta !== null && e.gamma !== null) {
+            compassHeading = computeHeading(e.alpha, e.beta, e.gamma);
+        } else {
+            compassHeading = (360 - e.alpha) % 360;
+        }
+    }, { passive: true });
+}
+
+function initCompass() {
+    if (!window.DeviceOrientationEvent) return;
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') return;
+    startCompassListener();
+}
+
+function requestCompassPermission() {
+    if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(function(state) {
+            if (state === 'granted') {
+                startCompassListener();
+            }
+        });
+    }
+}
+
+function init() {
+    loadSettings();
+    updateDisplays();
+    renderHeardList();
+    renderQuickActions();
+    updateUTCClock();
+    loadTLECache();
+    initCompass();
+    setInterval(updateUTCClock, 1000);
+    setInterval(refreshSatPasses, 30000);
+    setInterval(renderHeardList, 10000);
+    refreshSatPasses();
+    selectSatellite('iss');
+
+    document.getElementById('terminal').innerHTML =
+        '<div class="line system"><span class="timestamp">[READY]</span> Terminal ready.</div>';
+    if (location.protocol === 'file:') {
+        addTerminalLine('system', 'file:// blocks some APIs. Serve via: npx serve .');
+    }
+    document.getElementById('setTncType').addEventListener('change', toggleBluetoothFields);
+    toggleBluetoothFields();
+
+    try {
+        if (navigator.serial) {
+            navigator.serial.addEventListener('connect', () => {
+                addTerminalLine('system', 'USB serial device detected. Click Connect.');
+                showToast('USB TNC detected! Click Connect.');
+                document.getElementById('tncStatusDot').className = 'status-dot warning';
+            });
+            navigator.serial.addEventListener('disconnect', () => {
+                addTerminalLine('system', 'USB serial device removed');
+            });
+        }
+    } catch (_) {}
+}
+
+function toggleBluetoothFields() {
+    const type = document.getElementById('setTncType').value;
+    const baudGroup = document.getElementById('setTncBaud').closest('.form-group');
+    if (type === 'bluetooth') {
+        baudGroup.style.display = 'none';
+    } else {
+        baudGroup.style.display = '';
+    }
+}
+
+function loadSettings() {
+    try {
+        const saved = localStorage.getItem('orbitaprs_settings');
+        if (saved) {
+            try {
+                const s = JSON.parse(saved);
+                state.myCall = s.myCall || 'N0CALL';
+                state.myGrid = s.myGrid || 'FN42';
+                state.txFreq = s.txFreq || 145.825;
+                state.digipath = s.digipath || 'ARISS';
+                state.myLat = (s.myLat !== undefined && s.myLat !== null && s.myLat !== '') ? s.myLat : 42.0;
+                state.myLon = (s.myLon !== undefined && s.myLon !== null && s.myLon !== '') ? s.myLon : -71.0;
+                state.myAlt = s.myAlt || 50;
+                state.qsoLog = s.qsoLog || [];
+                state.tncType = s.tncType || 'serial';
+                state.tncBaud = s.tncBaud || '57600';
+                state.logLines = s.logLines || 300;
+                state.autoQSO = s.autoQSO !== undefined ? s.autoQSO : true;
+                state.rawMonitor = s.rawMonitor || false;
+                state.rstDefault = s.rstDefault || '59';
+                state.tocall = s.tocall || 'APZ100';
+                state.msgIdCounter = s.msgIdCounter !== undefined ? s.msgIdCounter : 0;
+                state.lastTLEUpdate = s.lastTLEUpdate || null;
+                state.macros = (s.macros && s.macros.length && s.macros[0].template) ? s.macros : DEFAULT_MACROS.map(m => ({...m}));
+                state.satFreqOverrides = s.satFreqOverrides || {};
+                state.elevationOffset = (s.elevationOffset !== undefined && s.elevationOffset !== null) ? s.elevationOffset : 0;
+                state.userSatellites = s.userSatellites || [];
+                state.mapShowHeardSat = s.mapShowHeardSat !== undefined ? s.mapShowHeardSat : true;
+                state.mapShowHeardTer = s.mapShowHeardTer !== undefined ? s.mapShowHeardTer : true;
+                state.mapShowQSO = s.mapShowQSO !== undefined ? s.mapShowQSO : true;
+                state.mapShowSat = s.mapShowSat !== undefined ? s.mapShowSat : true;
+                state.mapColorHeardSat = s.mapColorHeardSat || '#3498db';
+                state.mapColorHeardTer = s.mapColorHeardTer || '#f0a030';
+                state.mapColorQSO = s.mapColorQSO || '#2ecc71';
+                state.mapColorSat = s.mapColorSat || '#aaaaaa';
+                state.termColorTx = s.termColorTx || '#f0a030';
+                state.termColorRx = s.termColorRx || '#00e676';
+                state.termColorEcho = s.termColorEcho || '#008844';
+                state.termColorOwn = s.termColorOwn || '#3b9fd4';
+            } catch (e) {}
+        }
+    } catch (e) {}
+    populateSettingsFields();
+}
+
+function populateSettingsFields() {
+    document.getElementById('setCall').value = state.myCall;
+    document.getElementById('setGrid').value = state.myGrid;
+    document.getElementById('setFreq').value = state.txFreq;
+    document.getElementById('setPath').value = state.digipath;
+    document.getElementById('setLat').value = state.myLat;
+    document.getElementById('setLon').value = state.myLon;
+    document.getElementById('setElevationOffset').value = state.elevationOffset;
+    document.getElementById('setTncType').value = state.tncType;
+    document.getElementById('setTncBaud').value = state.tncBaud;
+    document.getElementById('setLogLines').value = state.logLines;
+    document.getElementById('setAutoQSO').value = state.autoQSO ? '1' : '0';
+    document.getElementById('setRawMonitor').checked = state.rawMonitor;
+    document.getElementById('setRstDefault').value = state.rstDefault;
+    document.getElementById('setTocall').value = state.tocall || 'APZ100';
+    document.getElementById('mapShowHeardSat').checked = state.mapShowHeardSat;
+    document.getElementById('mapShowHeardTer').checked = state.mapShowHeardTer;
+    document.getElementById('mapShowQSO').checked = state.mapShowQSO;
+    document.getElementById('mapShowSat').checked = state.mapShowSat;
+    document.getElementById('mapColorHeardSat').value = state.mapColorHeardSat;
+    document.getElementById('mapColorHeardTer').value = state.mapColorHeardTer;
+    document.getElementById('mapColorQSO').value = state.mapColorQSO;
+    document.getElementById('mapColorSat').value = state.mapColorSat;
+    document.getElementById('termColorTx').value = state.termColorTx;
+    document.getElementById('termColorRx').value = state.termColorRx;
+    document.getElementById('termColorEcho').value = state.termColorEcho;
+    document.getElementById('termColorOwn').value = state.termColorOwn;
+}
+
+function saveSettings() {
+    state.myCall = document.getElementById('setCall').value.toUpperCase().trim() || 'N0CALL';
+    state.myGrid = document.getElementById('setGrid').value.toUpperCase().trim() || 'FN42';
+    state.txFreq = parseFloat(document.getElementById('setFreq').value) || 145.825;
+    state.digipath = document.getElementById('setPath').value || 'ARISS';
+    state.myLat = parseFloat(document.getElementById('setLat').value) || 42.0;
+    state.myLon = parseFloat(document.getElementById('setLon').value) || -71.0;
+    state.myGrid = latLonToGrid(state.myLat, state.myLon, 4);
+    document.getElementById('setGrid').value = state.myGrid;
+    state.elevationOffset = parseFloat(document.getElementById('setElevationOffset').value) || 0;
+    state.tncType = document.getElementById('setTncType').value || 'serial';
+    state.tncBaud = document.getElementById('setTncBaud').value || '57600';
+    state.logLines = parseInt(document.getElementById('setLogLines').value) || 300;
+    state.autoQSO = document.getElementById('setAutoQSO').value === '1';
+    state.rawMonitor = document.getElementById('setRawMonitor').checked;
+    state.rstDefault = document.getElementById('setRstDefault').value || '59';
+    state.tocall = document.getElementById('setTocall').value.toUpperCase().trim() || 'APZ100';
+    state.mapShowHeardSat = document.getElementById('mapShowHeardSat').checked;
+    state.mapShowHeardTer = document.getElementById('mapShowHeardTer').checked;
+    state.mapShowQSO = document.getElementById('mapShowQSO').checked;
+    state.mapShowSat = document.getElementById('mapShowSat').checked;
+    state.mapColorHeardSat = document.getElementById('mapColorHeardSat').value;
+    state.mapColorHeardTer = document.getElementById('mapColorHeardTer').value;
+    state.mapColorQSO = document.getElementById('mapColorQSO').value;
+    state.mapColorSat = document.getElementById('mapColorSat').value;
+    state.termColorTx = document.getElementById('termColorTx').value;
+    state.termColorRx = document.getElementById('termColorRx').value;
+    state.termColorEcho = document.getElementById('termColorEcho').value;
+    state.termColorOwn = document.getElementById('termColorOwn').value;
+    persistSettings();
+    updateDisplays();
+    if (typeof mapView !== 'undefined' && mapView.updateMyStation) mapView.updateMyStation();
+    refreshSatPasses();
+    toggleModal('settingsModal', false);
+    showToast('Settings saved');
+}
+
+function updateGridFromCoords() {
+    var lat = parseFloat(document.getElementById('setLat').value);
+    var lon = parseFloat(document.getElementById('setLon').value);
+    if (!isNaN(lat) && !isNaN(lon)) {
+        document.getElementById('setGrid').value = latLonToGrid(lat, lon, 4);
+    }
+}
+
+function updateDeviceInfo() {
+    var el = document.getElementById('tncDeviceInfo');
+    if (!el) return;
+    if (state.tnc && state.tnc.connected) {
+        var t = state.tnc.transport;
+        if (t._type === 'webusb' && t.device) {
+            el.textContent = t.device.productName || 'USB Device';
+            el.style.color = 'var(--text-bright)';
+        } else if (t._type === 'bluetooth' && t.device) {
+            el.textContent = t.device.name || 'Bluetooth Device';
+            el.style.color = 'var(--text-bright)';
+        } else {
+            el.textContent = 'Serial: Connected';
+            el.style.color = 'var(--text-bright)';
+        }
+    } else {
+        el.textContent = 'Disconnected';
+        el.style.color = '#888';
+    }
+}
+
+var _noradCache = [];
+
+function onNoradInput() {
+    if (_noradCache.length === 0) {
+        fetchNoradSuggestions();
+    }
+}
+
+async function fetchNoradSuggestions() {
+    try {
+        var resp = await fetch('https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle', {
+            headers: { 'Accept': 'text/plain, */*' }
+        });
+        if (!resp.ok) return;
+        var text = await resp.text();
+        var lines = text.split('\n').filter(function(l) { return l.trim() !== ''; });
+        var suggestions = [];
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (line.startsWith('1 ') && i + 1 < lines.length && lines[i + 1].trim().startsWith('2 ')) {
+                var tle1 = line;
+                var noradId = parseInt(tle1.split(/\s+/)[1], 10);
+                var name = 'Unknown';
+                if (i > 0) {
+                    var prev = lines[i - 1].trim();
+                    if (!prev.startsWith('1 ') && !prev.startsWith('2 ') && prev.length > 0) {
+                        name = prev;
+                    }
+                }
+                if (!isNaN(noradId)) suggestions.push({ noradId: noradId, name: name });
+            }
+        }
+        _noradCache = suggestions;
+        var datalist = document.getElementById('noradSuggestions');
+        if (datalist) {
+            datalist.innerHTML = suggestions.map(function(s) {
+                return '<option value="' + s.noradId + '">' + s.name + ' (' + s.noradId + ')</option>';
+            }).join('');
+        }
+    } catch (e) {}
+}
+
+async function addSatelliteByNorad() {
+    var input = document.getElementById('setNoradId');
+    if (!input) return;
+    var val = input.value.trim();
+    if (!val) { showToast('Enter a NORAD ID', true); return; }
+    var noradId = parseInt(val, 10);
+    if (isNaN(noradId)) { showToast('Invalid NORAD ID', true); return; }
+    if (satelliteDB.some(function(s) { return s.noradId === noradId; })) {
+        showToast('Satellite already in list', true);
+        return;
+    }
+    try {
+        showToast('Fetching TLE for NORAD ' + noradId + '...');
+        var resp = await fetch('https://celestrak.org/NORAD/elements/gp.php?CATNR=' + noradId + '&FORMAT=TLE', {
+            headers: { 'Accept': 'text/plain, */*' }
+        });
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        var text = await resp.text();
+        var lines = text.split('\n').filter(function(l) { return l.trim() !== ''; });
+        var tle1 = null, tle2 = null, name = 'SAT' + noradId;
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i].trim();
+            if (line.startsWith('1 ') && !tle1) {
+                tle1 = line;
+                if (i > 0) {
+                    var prev = lines[i - 1].trim();
+                    if (!prev.startsWith('1 ') && !prev.startsWith('2 ') && prev.length > 0) name = prev;
+                }
+            } else if (line.startsWith('2 ') && tle1 && !tle2) {
+                tle2 = line;
+            }
+        }
+        if (!tle1 || !tle2) throw new Error('Could not parse TLE');
+        var id = 'user_' + noradId;
+        var sat = {
+            id: id, noradId: noradId, name: name,
+            freq: state.txFreq, freqRX: state.txFreq, type: 'digipeater',
+            tle1: tle1, tle2: tle2, color: '#3b9fd4',
+        };
+        satelliteDB.push(sat);
+        state.userSatellites.push(noradId);
+        persistSettings();
+        saveTLECache();
+        renderSatListManage();
+        renderSatModal();
+        input.value = '';
+        showToast('Added ' + name);
+    } catch (err) {
+        showToast('Error: ' + err.message, true);
+    }
+}
+
+function removeSatellite(noradId) {
+    var idx = satelliteDB.findIndex(function(s) { return s.noradId === noradId; });
+    if (idx >= 0) {
+        var sat = satelliteDB[idx];
+        if (sat.id === 'terrestrial' || sat.id === 'iss') {
+            showToast('Cannot remove default satellite', true);
+            return;
+        }
+        satelliteDB.splice(idx, 1);
+    }
+    var uidx = state.userSatellites.indexOf(noradId);
+    if (uidx >= 0) state.userSatellites.splice(uidx, 1);
+    persistSettings();
+    renderSatListManage();
+    renderSatModal();
+    showToast('Satellite removed');
+}
+
+function renderSatListManage() {
+    var el = document.getElementById('satListManage');
+    if (!el) return;
+    el.innerHTML = satelliteDB.map(function(s) {
+        if (s.id === 'terrestrial') return '';
+        var canRemove = s.noradId && state.userSatellites.indexOf(s.noradId) >= 0;
+        return '<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-bottom:1px solid var(--border);font-size:0.85em;">' +
+            '<span>' + s.name + ' <span style="color:#666;">(' + s.noradId + ')</span></span>' +
+            (canRemove ? '<button class="btn btn-sm btn-outline" onclick="removeSatellite(' + s.noradId + ')" style="color:#e74c3c;border-color:#e74c3c;font-size:0.8em;">✕</button>' : '') +
+            '</div>';
+    }).join('');
+}
+
+function persistSettings() {
+    try {
+        localStorage.setItem('orbitaprs_settings', JSON.stringify({
+            myCall: state.myCall, myGrid: state.myGrid, txFreq: state.txFreq,
+            digipath: state.digipath, myLat: state.myLat, myLon: state.myLon,
+            myAlt: state.myAlt, qsoLog: state.qsoLog,
+            tncType: state.tncType, tncBaud: state.tncBaud,
+            logLines: state.logLines, autoQSO: state.autoQSO, rawMonitor: state.rawMonitor,
+            rstDefault: state.rstDefault, tocall: state.tocall, msgIdCounter: state.msgIdCounter,
+            lastTLEUpdate: state.lastTLEUpdate, macros: state.macros,
+            satFreqOverrides: state.satFreqOverrides, elevationOffset: state.elevationOffset,
+            userSatellites: state.userSatellites,
+            mapShowHeardSat: state.mapShowHeardSat, mapShowHeardTer: state.mapShowHeardTer,
+            mapShowQSO: state.mapShowQSO, mapShowSat: state.mapShowSat,
+            mapColorHeardSat: state.mapColorHeardSat, mapColorHeardTer: state.mapColorHeardTer,
+            mapColorQSO: state.mapColorQSO, mapColorSat: state.mapColorSat,
+            termColorTx: state.termColorTx, termColorRx: state.termColorRx,
+            termColorEcho: state.termColorEcho, termColorOwn: state.termColorOwn,
+        }));
+    } catch (e) {}
+}
+
+function updateDisplays() {
+    document.getElementById('myCallDisplay').textContent = state.myCall;
+    document.getElementById('myGridDisplay').textContent = state.myGrid;
+    document.getElementById('txFreqDisplay').textContent = state.txFreq.toFixed(3) + ' MHz';
+    document.getElementById('pathDisplay').textContent = state.digipath;
+    document.getElementById('tocallDisplay').textContent = state.tocall || 'APZ100';
+    const sat = satelliteDB.find(s => s.id === state.selectedSat);
+    if (sat) document.getElementById('satNameDisplay').textContent = sat.name.split(' ')[0];
+    renderQSOs();
+}
+
+function useGPSSettings() {
+    if (!navigator.geolocation) {
+        showToast('Geolocation not available', true);
+        return;
+    }
+    showToast('Requesting GPS location...');
+    navigator.geolocation.getCurrentPosition(
+        (pos) => {
+            document.getElementById('setLat').value = pos.coords.latitude.toFixed(6);
+            document.getElementById('setLon').value = pos.coords.longitude.toFixed(6);
+            if (pos.coords.altitude !== null) {
+                state.myAlt = Math.round(pos.coords.altitude);
+            }
+            updateGridFromCoords();
+            saveSettings();
+        },
+        (err) => {
+            showToast('GPS error: ' + err.message, true);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+    );
+}
+
+function updateUTCClock() {
+    const now = new Date();
+    const yyyy = now.getUTCFullYear();
+    const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(now.getUTCDate()).padStart(2, '0');
+    const hh = String(now.getUTCHours()).padStart(2, '0');
+    const mi = String(now.getUTCMinutes()).padStart(2, '0');
+    const ss = String(now.getUTCSeconds()).padStart(2, '0');
+    document.getElementById('utcDate').textContent = yyyy + '-' + mm + '-' + dd;
+    document.getElementById('utcTime').textContent = hh + ':' + mi + ':' + ss + ' UTC';
+    var betaEl = document.getElementById('betaRawDisplay');
+    if (betaEl) {
+        betaEl.textContent = compassRaw.beta !== null ? '(current: ' + compassRaw.beta.toFixed(1) + '\u00b0)' : '';
+    }
+}
+
+function getUTCShort() {
+    return new Date().toISOString().slice(11, 19);
+}
+
+function getUTCNow() {
+    return new Date().toISOString().replace('T', ' ').slice(0, 19);
+}

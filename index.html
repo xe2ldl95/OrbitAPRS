@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0a0d14">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%230a0d14' stroke='%23f0a030' stroke-width='2'/><text x='32' y='42' font-size='32' text-anchor='middle' fill='%23f0a030'>🛰</text></svg>">
+    <link rel="manifest" href="manifest.json">
+    <title>OrbitAPRS - Satellite QSO Terminal</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo" title="Settings (Ctrl+,)">
+            <div class="icon">🛰️</div>
+            <span>OrbitAPRS</span>
+        </div>
+        <div class="utc-clock" id="utcClock">
+            <span id="utcDate">---- -- --</span>
+            <span id="utcTime">--:--:-- UTC</span>
+            <span id="utcDoppler"></span>
+        </div>
+        <div class="status-indicators">
+            <span style="font-size:0.8em;color:#888;">TNC:</span>
+            <span class="status-dot idle" id="tncStatusDot"></span>
+            <span class="sat-selector" onclick="toggleModal('satModal',true)" title="Select satellite">
+                <span style="font-size:0.8em;color:#888;">Sat:</span>
+                <span class="status-dot idle" id="satStatusDot"></span>
+                <b id="satNameDisplay">ISS</b>
+            </span>
+            <button class="btn btn-sm btn-outline" style="margin-left:auto;" onclick="toggleModal('settingsModal',true);requestCompassPermission()">⚙️</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        <div class="left-column">
+            <div class="panel terminal-panel">
+                <div class="panel-header"><span class="dot"></span>
+                    <div class="panel-tabs">
+                        <button class="panel-tab active" data-tab="terminal" onclick="switchTerminalTab('terminal')">Terminal</button>
+                        <button class="panel-tab map-tab" data-tab="map" onclick="switchTerminalTab('map')">Map</button>
+                        <button class="panel-tab" data-tab="nav" onclick="switchTerminalTab('nav')">Nav</button>
+                    </div>
+                    <button class="btn btn-sm map-follow-btn" id="mapFollowBtn" style="display:none;" onclick="toggleMapFollow()" title="Toggle follow satellite">◎ Dynamic</button>
+                    <button class="btn btn-sm btn-outline" style="margin-left:auto;" onclick="clearTerminal()">Clear</button>
+                </div>
+                <div class="terminal" id="terminal">
+                    <div class="line system"><span class="timestamp">[READY]</span> Terminal ready.</div>
+                </div>
+                <div id="mapContainer"></div>
+                <div id="navContainer" style="display:none;"></div>
+            </div>
+            <div class="panel input-panel">
+                <div class="panel-header"><span class="dot" style="background:#3b9fd4;"></span> Packet Builder
+                    <span style="margin-left:auto;font-weight:400;font-size:0.7em;color:#666;text-transform:none;letter-spacing:normal;display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+                        <span>TX: <b id="txFreqDisplay">145.825 MHz</b></span>
+                        <span>|</span>
+                        <span>Path: <b id="pathDisplay">ARISS</b></span>
+                        <span>|</span>
+                        <span>Tocall: <b id="tocallDisplay">APZ100</b></span>
+                        <span>|</span>
+                        <span>Callsign: <b id="myCallDisplay">N0CALL</b></span>
+                        <span>|</span>
+                        <span>Grid: <b id="myGridDisplay">--</b></span>
+                    </span>
+                </div>
+                <div class="panel-body">
+                    <div class="input-area">
+                        <div class="input-row" style="display:flex;align-items:center;gap:4px;">
+                            <div id="quickActions" style="display:flex;align-items:center;gap:4px;"></div>
+                            <input type="text" id="packetTarget" placeholder="Target..." style="flex:1;min-width:80px;margin-left:auto;">
+                            <button class="btn btn-primary" onclick="buildAndSendPacket()" style="white-space:nowrap;">⚡ TX</button>
+                        </div>
+                        <div id="freeTextInput" class="input-row" style="margin-top:6px;">
+                            <input type="text" id="freeTextPacket" placeholder="Mensaje directo..." style="flex:1;">
+                            <button class="btn btn-primary" onclick="sendFreeTextPacket()" style="white-space:nowrap;">📨 Enviar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-column">
+            <div class="panel heard-panel">
+                <div class="panel-header"><span class="dot" style="background:#3498db;"></span> Heard Stations</div>
+                <div class="panel-body no-padding" id="heardList"></div>
+            </div>
+            <div class="panel qso-panel">
+                <div class="panel-header"><span class="dot" style="background:#2ecc71;"></span> QSO Log
+                    <button class="btn btn-sm btn-outline" id="mapModeToggle" onclick="toggleMapMode()" style="margin-left:auto;">Sat</button>
+                    <button class="btn btn-sm btn-outline" id="qsoViewToggle" onclick="toggleQSOView()">One</button>
+                    <button class="btn btn-sm btn-outline" onclick="exportQSOLog()">Adi</button>
+                    <button class="btn btn-sm btn-outline" onclick="clearQSOLog()" style="color:#e74c3c;border-color:#e74c3c;">Erase</button>
+                </div>
+                <div class="panel-body no-padding">
+                    <table class="qso-table" id="qsoTable">
+                        <thead><tr><th>UTC</th><th>Sat</th><th>Call</th><th>Grid</th><th>RST</th><th>Dist</th><th>St</th></tr></thead>
+                        <tbody id="qsoBody"><tr><td colspan="7" style="text-align:center;color:#555;padding:20px;">No QSOs yet</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="satModal">
+        <div class="modal">
+            <h3>🛰️ Select Satellite</h3>
+            <div style="font-size:0.8em;color:#888;margin-bottom:8px;" id="tleStatus">TLE: --</div>
+            <div id="satModalList"></div>
+            <div class="btn-row" style="margin-top:12px;">
+                <button class="btn btn-outline" onclick="refreshSatPasses();renderSatModal()">🔄 Refresh</button>
+                <button class="btn btn-outline" onclick="fetchTLEUpdate()">📡 Update TLE</button>
+                <button class="btn btn-primary" onclick="toggleModal('satModal',false)">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <h3>⚙️ Settings</h3>
+            <div class="settings-tabs" id="settingsTabs">
+                <button class="tab-btn active" data-tab="station" onclick="switchSettingsTab('station')">Station</button>
+                <button class="tab-btn" data-tab="modem" onclick="switchSettingsTab('modem')">Modem</button>
+                <button class="tab-btn" data-tab="sat" onclick="switchSettingsTab('sat')">Sat</button>
+                <button class="tab-btn" data-tab="macros" onclick="switchSettingsTab('macros')">Macros</button>
+                <button class="tab-btn" data-tab="logging" onclick="switchSettingsTab('logging')">Logging</button>
+                <button class="tab-btn" data-tab="calibration" onclick="switchSettingsTab('calibration')">Calibration</button>
+                <button class="tab-btn" data-tab="map" onclick="switchSettingsTab('map')">Map</button>
+                <button class="tab-btn" data-tab="terminal" onclick="switchSettingsTab('terminal')">Terminal</button>
+                <button class="tab-btn" data-tab="licenses" onclick="switchSettingsTab('licenses')">Licenses</button>
+            </div>
+
+            <div class="tab-content" id="tab-station">
+                <div class="form-group"><label>Callsign (SSID opcional, ej: N0CALL-7)</label><input type="text" id="setCall" value="N0CALL" maxlength="10"></div>
+                <div class="form-group"><label>Grid Square</label><input type="text" id="setGrid" value="FN42" maxlength="6" style="text-transform:uppercase;"></div>
+                <div class="form-group"><label>Default RST</label><select id="setRstDefault"><option value="59">59 (Standard)</option><option value="55">55</option><option value="52">52</option><option value="33">33 (Weak)</option></select></div>
+                <div class="form-group"><label>Tocall (APRS software ID)</label><input type="text" id="setTocall" value="APZ100" maxlength="6" style="text-transform:uppercase;" placeholder="APZ100"></div>
+                <div class="form-group"><label>Latitude</label><input type="number" id="setLat" value="42.0" step="0.0001" min="-90" max="90" oninput="updateGridFromCoords()"></div>
+                <div class="form-group"><label>Longitude</label><input type="number" id="setLon" value="-71.0" step="0.0001" min="-180" max="180" oninput="updateGridFromCoords()"></div>
+                <button class="btn btn-outline" onclick="useGPSSettings()">📍 Use My Location</button>
+            </div>
+
+            <div class="tab-content" id="tab-modem" style="display:none;">
+                <div class="form-group"><label>TNC Type</label><select id="setTncType"><option value="serial">Serial (KISS) — USB &amp; Bluetooth SPP</option><option value="bluetooth">Bluetooth LE (BLE KISS)</option><option value="webusb">USB (WebUSB — CH340)</option></select></div>
+                <div class="form-group"><label>Device</label><div id="tncDeviceInfo" style="background:#1a1f2a;border:1px solid var(--border);color:#888;padding:8px 12px;border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:0.9em;">Disconnected</div></div>
+                <div class="form-group"><label>Baud Rate</label><select id="setTncBaud"><option>9600</option><option>19200</option><option>38400</option><option selected>57600</option><option>115200</option></select></div>
+                <div class="btn-row" style="justify-content:flex-start;">
+                    <button class="btn btn-primary" onclick="tncConnect()">🔌 Connect</button>
+                    <button class="btn btn-danger" onclick="tncDisconnect()">⛔ Disconnect</button>
+                </div>
+                <div style="margin-top:8px;font-size:0.8em;color:#888;" id="tncStatusText">TNC: Disconnected</div>
+            </div>
+
+            <div class="tab-content" id="tab-sat" style="display:none;">
+                <div class="form-group"><label>TX Frequency (MHz)</label><input type="number" id="setFreq" value="145.825" step="0.001" min="144" max="148"></div>
+                <div class="form-group"><label>Digipath</label><select id="setPath"><option>ARISS</option><option>WIDE1-1,WIDE2-1</option><option>WIDE1-1</option><option>WIDE2-2</option><option>DIRECT</option></select></div>
+                <div class="form-group" style="border-top:1px solid var(--border);padding-top:12px;margin-top:16px;">
+                    <label style="font-weight:600;color:var(--text-bright);">Satellite Freq Override</label>
+                    <div style="display:flex;gap:4px;margin-top:4px;">
+                        <select id="setFreqOverrideSat" onchange="onFreqOverrideSatChange()" style="flex:1;background:#1a1f2a;border:1px solid var(--border);color:var(--text-bright);padding:8px 12px;border-radius:var(--radius-sm);font-size:0.9em;outline:none;"></select>
+                        <input type="number" id="setFreqOverrideVal" step="0.001" min="144" max="148" placeholder="MHz" oninput="onFreqOverrideValChange()" style="width:100px;background:#1a1f2a;border:1px solid var(--border);color:var(--text-bright);padding:8px 12px;border-radius:var(--radius-sm);font-size:0.9em;outline:none;">
+                        <button class="btn btn-sm btn-outline" onclick="resetFreqOverride()" title="Reset to default">↺</button>
+                    </div>
+                    <div id="freqOverrideDefault" style="font-size:0.8em;color:#666;margin-top:2px;">Default: -- MHz</div>
+                </div>
+                <div class="btn-row" style="justify-content:flex-start;margin-top:12px;">
+                    <button class="btn btn-outline" onclick="fetchTLEUpdate()">📡 Update TLE</button>
+                </div>
+                <div class="form-group" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
+                    <label>Add Satellite (NORAD ID)</label>
+                    <div style="display:flex;gap:4px;">
+                        <input type="text" id="setNoradId" placeholder="Enter NORAD ID or name..." style="flex:1;" list="noradSuggestions" oninput="onNoradInput()">
+                        <datalist id="noradSuggestions"></datalist>
+                        <button class="btn btn-outline" onclick="addSatelliteByNorad()">➕ Add</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Satellite List</label>
+                    <div id="satListManage" style="max-height:150px;overflow-y:auto;background:#1a1f2a;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px;"></div>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-macros" style="display:none;">
+                <p style="color:#888;font-size:0.82em;margin-bottom:6px;"><code style="color:var(--accent2);">%C</code> <span style="color:#555;">target con SSID</span> &nbsp; <code style="color:var(--accent2);">%c</code> <span style="color:#555;">target sin SSID</span> &nbsp; <code style="color:var(--accent2);">%M</code> <span style="color:#555;">mi callsign</span> &nbsp; <code style="color:var(--accent2);">%G</code> <span style="color:#555;">mi grid</span> &nbsp; <code style="color:var(--accent2);">%R</code> <span style="color:#555;">grid remoto</span> &nbsp; <code style="color:var(--accent2);">%S</code> <span style="color:#555;">satélite</span> &nbsp; <code style="color:var(--accent2);">%N</code> <span style="color:#555;">nro. secuencia</span></p>
+                <div id="macroEditor"></div>
+                <div style="margin-top:6px;">
+                    <button class="btn btn-outline" onclick="addMacro()" style="font-size:0.85em;">➕ Add Macro</button>
+                    <button class="btn btn-outline" onclick="resetMacros()" style="font-size:0.85em;margin-left:4px;">↺ Reset Defaults</button>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-logging" style="display:none;">
+                <div class="form-group"><label>Terminal History</label><select id="setLogLines"><option value="100">100 lines</option><option value="300" selected>300 lines</option><option value="500">500 lines</option></select></div>
+                <div class="form-group"><label>Auto-log QSOs from RX</label><select id="setAutoQSO"><option value="1">Enabled</option><option value="0">Disabled</option></select></div>
+                <div class="btn-row" style="justify-content:flex-start;">
+                    <button class="btn btn-outline" onclick="clearTerminal()">🧹 Clear Terminal</button>
+                    <button class="btn btn-outline" onclick="exportQSOLog()">📥 Export QSO Log</button>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-calibration" style="display:none;">
+                <div class="form-group"><label>Elevation offset (beta when phone flat) <span id="betaRawDisplay" style="color:#f0a030;font-weight:400;"></span></label><input type="number" id="setElevationOffset" value="0" step="0.1"></div>
+            </div>
+
+            <div class="tab-content" id="tab-map" style="display:none;">
+                <div style="display:grid;grid-template-columns:1fr auto auto;gap:6px 12px;align-items:center;">
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show heard stations in SAT mode</label>
+                    <input type="checkbox" id="mapShowHeardSat" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
+                    <input type="color" id="mapColorHeardSat" value="#3498db" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
+
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show heard stations in Terrestrial mode</label>
+                    <input type="checkbox" id="mapShowHeardTer" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
+                    <input type="color" id="mapColorHeardTer" value="#f0a030" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
+
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show QSO stations</label>
+                    <input type="checkbox" id="mapShowQSO" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
+                    <input type="color" id="mapColorQSO" value="#2ecc71" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
+
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show satellites</label>
+                    <input type="checkbox" id="mapShowSat" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
+                    <input type="color" id="mapColorSat" value="#aaaaaa" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-terminal" style="display:none;">
+                <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+                    <span style="flex:1;font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Raw serial monitor</span>
+                    <input type="checkbox" id="setRawMonitor" style="width:16px;height:16px;cursor:pointer;">
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;">
+                        <span style="flex:1;">TX messages color</span>
+                        <input type="color" id="termColorTx" value="#f0a030" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;">
+                        <span style="flex:1;">RX messages color</span>
+                        <input type="color" id="termColorRx" value="#00e676" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;">
+                        <span style="flex:1;">Echo messages color</span>
+                        <input type="color" id="termColorEcho" value="#008844" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;">
+                        <span style="flex:1;">Own repeat messages color</span>
+                        <input type="color" id="termColorOwn" value="#3b9fd4" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
+                    </label>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-licenses" style="display:none;">
+                <div class="licenses-content">
+                    <p><b style="color:var(--text-bright);">OrbitAPRS</b> — Satellite QSO Terminal</p>
+                    <p><b>Version:</b> 1.7</p>
+                    <p>License: MIT</p>
+                    <p style="margin-bottom:12px;">Copyright (c) 2024 XE2LDL - Luis</p>
+                    <p style="color:var(--text-bright);font-weight:600;margin-top:16px;">Third-party licenses:</p>
+                    <hr style="border-color:var(--border);margin:8px 0;">
+                    <p><b>Leaflet 1.9.4</b> — BSD-2-Clause</p>
+                    <p>Copyright (c) 2010-2024, Volodymyr Agafonkin</p>
+                    <p style="margin-bottom:8px;"><a href="https://leafletjs.com" target="_blank" style="color:var(--accent);">https://leafletjs.com</a></p>
+                    <hr style="border-color:var(--border);margin:8px 0;">
+                    <p><b>satellite.js</b> — MIT License</p>
+                    <p>Copyright (c) SatelliteJS Contributors</p>
+                    <p style="margin-bottom:8px;"><a href="https://github.com/satellitejs/satellite.js" target="_blank" style="color:var(--accent);">https://github.com/satellitejs/satellite.js</a></p>
+                    <hr style="border-color:var(--border);margin:8px 0;">
+                    <p><b>CartoDB tiles</b> — CC-BY-4.0</p>
+                    <p>Map tiles by CARTO, &copy; <a href="https://openstreetmap.org/copyright" target="_blank" style="color:var(--accent);">OpenStreetMap contributors</a></p>
+                    <p style="margin-bottom:8px;"><a href="https://carto.com/attribution" target="_blank" style="color:var(--accent);">https://carto.com/attribution</a></p>
+                    <hr style="border-color:var(--border);margin:8px 0;">
+                    <p><b>TLE orbital data</b> — Public Domain</p>
+                    <p>Provided by <a href="https://celestrak.org" target="_blank" style="color:var(--accent);">Celestrak</a> / Dr. T.S. Kelso</p>
+                    <p style="margin-bottom:8px;">Additional data from <a href="https://amsat.org" target="_blank" style="color:var(--accent);">AMSAT</a></p>
+                    <hr style="border-color:var(--border);margin:8px 0;">
+                    <p><b>Icons</b></p>
+                    <p style="margin-bottom:8px;">PWA icons generated with Google Gemini AI</p>
+                    <hr style="border-color:var(--border);margin:8px 0;">
+                    <p style="font-size:0.85em;color:#666;">OrbitAPRS is an open-source project for amateur radio satellite communication.</p>
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="toggleModal('settingsModal',false)">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSettings()">💾 Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="js/satellite-lib.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/satellite.js"></script>
+    <script src="js/aprs.js"></script>
+    <script src="js/tnc.js"></script>
+    <script src="js/logging.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="js/map.js"></script>
+    <script src="js/nav.js"></script>
+    <script>init(); if (typeof mapView !== 'undefined') mapView.init(); if (typeof navView !== 'undefined') navView.init();</script>
+    <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+</body>
+</html>

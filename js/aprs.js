@@ -1,0 +1,147 @@
+function latToAPRS(lat) {
+    const a = Math.abs(lat);
+    const d = Math.floor(a), m = (a - d) * 60;
+    return d.toString().padStart(2, '0') + m.toFixed(2).padStart(5, '0') + (lat >= 0 ? 'N' : 'S');
+}
+
+function lonToAPRS(lon) {
+    const a = Math.abs(lon);
+    const d = Math.floor(a), m = (a - d) * 60;
+    return d.toString().padStart(3, '0') + m.toFixed(2).padStart(5, '0') + (lon >= 0 ? 'E' : 'W');
+}
+
+function buildAX25Frame(packet) {
+    const dest = encodeAX25Address(packet.destCall || 'APRS', 0);
+    const src = encodeAX25Address(packet.sourceCall, 1);
+    let digi = [];
+    if (packet.digipath && packet.digipath !== 'DIRECT') {
+        const dlist = packet.digipath.split(',');
+        dlist.forEach((d, i) => {
+            const dd = d.trim();
+            if (dd) digi = digi.concat(Array.from(encodeAX25Address(dd, i === dlist.length - 1 ? 0x01 : 0)));
+        });
+    }
+    const ctrl = 0x03, pid = 0xF0;
+    const info = stringToBytes(packet.infoField);
+    let frame = [...dest, ...src, ...digi, ctrl, pid, ...info];
+    const fcs = calcFCS(frame);
+    frame.push(fcs & 0xFF, (fcs >> 8) & 0xFF);
+    return new Uint8Array(frame);
+}
+
+function encodeAX25Address(call, flags) {
+    const b = new Uint8Array(7);
+    let base = call, ssid = 0;
+    const dash = call.indexOf('-');
+    if (dash >= 0) {
+        base = call.slice(0, dash);
+        ssid = parseInt(call.slice(dash + 1), 10) || 0;
+    }
+    for (let i = 0; i < 6; i++) b[i] = (i < base.length ? base.charCodeAt(i) << 1 : 0x20 << 1);
+    b[6] = 0x40 | ((ssid & 0x0F) << 1) | (flags & 0x01);
+    return b;
+}
+
+function calcFCS(data) {
+    let fcs = 0xFFFF;
+    for (let i = 0; i < data.length; i++) {
+        fcs ^= data[i];
+        for (let j = 0; j < 8; j++) fcs = (fcs & 1) ? (fcs >> 1) ^ 0x8408 : fcs >> 1;
+    }
+    return (~fcs) & 0xFFFF;
+}
+
+function stringToBytes(str) {
+    return Array.from(str).map(c => c.charCodeAt(0) & 0xFF);
+}
+
+function _ax25AddrAt(data, off) {
+    let call = '';
+    for (let i = off; i < off + 6; i++) {
+        const c = String.fromCharCode(data[i] >> 1);
+        if (c !== ' ') call += c;
+    }
+    const ssid = (data[off + 6] >> 1) & 0x0F;
+    return { base: call, ssid: ssid, full: ssid > 0 ? call + '-' + ssid : call };
+}
+
+function parseAX25Frame(bytes) {
+    if (bytes.length < 18) return null;
+    const data = bytes.slice(0, -2);
+    let addrEnd = 0;
+    for (let i = 6; i < data.length; i += 7) {
+        if (data[i] & 0x01) { addrEnd = i + 1; break; }
+    }
+    if (addrEnd < 14) return null;
+    const dst = _ax25AddrAt(data, 0);
+    const src = _ax25AddrAt(data, 7);
+    const digiPath = [];
+    for (let i = 14; i < addrEnd; i += 7) {
+        digiPath.push(_ax25AddrAt(data, i).full);
+    }
+    let infoField = '';
+    for (let i = addrEnd + 2; i < data.length; i++) {
+        infoField += String.fromCharCode(data[i]);
+    }
+    return {
+        source: src.full,
+        sourceBase: src.base,
+        sourceSSID: src.ssid,
+        dest: dst.full,
+        destBase: dst.base,
+        destSSID: dst.ssid,
+        digiPath: digiPath,
+        info: infoField,
+    };
+}
+
+function latLonToGrid(lat, lon, length) {
+    if (length !== 4 && length !== 6) length = 6;
+    const adjLon = lon + 180, adjLat = lat + 90;
+    const fLon = Math.floor(adjLon / 20), fLat = Math.floor(adjLat / 10);
+    let grid = String.fromCharCode(65 + fLon) + String.fromCharCode(65 + fLat);
+    if (length <= 2) return grid;
+    const sLon = Math.floor((adjLon % 20) / 2), sLat = Math.floor((adjLat % 10) / 1);
+    grid += sLon.toString() + sLat.toString();
+    if (length <= 4) return grid;
+    const uLon = Math.floor((adjLon % 2) / (2 / 24)), uLat = Math.floor((adjLat % 1) / (1 / 24));
+    grid += String.fromCharCode(97 + uLon) + String.fromCharCode(97 + uLat);
+    return grid.toUpperCase();
+}
+
+function extractAPRSData(info) {
+    const result = { grid: null, lat: null, lon: null, comment: null };
+    if (!info) return result;
+    if (info[0] === '=' || info[0] === '@' || info[0] === '!') {
+        const body = info.slice(1);
+        const latLonMatch = body.match(/(\d{4}\.\d{2}[NS])(.)(\d{5}\.\d{2}[EW])/);
+        if (latLonMatch) {
+            const latStr = latLonMatch[1], lonStr = latLonMatch[3];
+            result.lat = parseFloat(latStr.slice(0, 2)) + parseFloat(latStr.slice(2, 7)) / 60;
+            if (latStr.slice(-1) === 'S') result.lat = -result.lat;
+            result.lon = parseFloat(lonStr.slice(0, 3)) + parseFloat(lonStr.slice(3, 8)) / 60;
+            if (lonStr.slice(-1) === 'W') result.lon = -result.lon;
+        }
+        const gridMatch = info.match(/\[(\w{4,6})\]/);
+        if (gridMatch) result.grid = gridMatch[1].toUpperCase();
+        if (!result.grid && result.lat !== null && result.lon !== null) {
+            result.grid = latLonToGrid(result.lat, result.lon, 6);
+        }
+        result.comment = body.replace(latLonMatch ? latLonMatch[0] : '', '').replace(/\[.*?\]/, '').trim() || null;
+    }
+    if (info[0] === ':') {
+        const body = info.length > 11 ? info.slice(11).replace(/\{[\da-zA-Z]{1,2}$/, '').trim() : '';
+        const gridKeyword = body.match(/(?:^|\s)(?:GRID|UR)\s+([A-Ra-r]{2}[0-9]{2}(?:[A-Xa-x]{2})?)/i);
+        if (gridKeyword) result.grid = gridKeyword[1].toUpperCase();
+        if (!result.grid) {
+            const g = body.match(/\b([A-Ra-r]{2}[0-9]{2}(?:[A-Xa-x]{2})?)\b/);
+            if (g) {
+                const gs = g[1].toUpperCase();
+                if (/^[A-R]{2}[0-9]{2}/.test(gs) && gs !== '73' && gs !== 'TU') result.grid = gs;
+            }
+        }
+        const rstMatch = body.match(/RST\s+(\d{2,3})/i);
+        if (rstMatch) result.comment = 'RST: ' + rstMatch[1];
+    }
+    return result;
+}
