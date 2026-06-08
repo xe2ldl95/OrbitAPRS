@@ -11,10 +11,11 @@ function lonToAPRS(lon) {
 }
 
 function buildAX25Frame(packet) {
+    const hasDigi = packet.digipath && packet.digipath !== 'DIRECT';
     const dest = encodeAX25Address(packet.destCall || 'APRS', 0);
-    const src = encodeAX25Address(packet.sourceCall, 1);
+    const src = encodeAX25Address(packet.sourceCall, hasDigi ? 0x00 : 0x01);
     let digi = [];
-    if (packet.digipath && packet.digipath !== 'DIRECT') {
+    if (hasDigi) {
         const dlist = packet.digipath.split(',');
         dlist.forEach((d, i) => {
             const dd = d.trim();
@@ -38,7 +39,7 @@ function encodeAX25Address(call, flags) {
         ssid = parseInt(call.slice(dash + 1), 10) || 0;
     }
     for (let i = 0; i < 6; i++) b[i] = (i < base.length ? base.charCodeAt(i) << 1 : 0x20 << 1);
-    b[6] = 0x40 | ((ssid & 0x0F) << 1) | (flags & 0x01);
+    b[6] = 0x60 | ((ssid & 0x0F) << 1) | (flags & 0x01);
     return b;
 }
 
@@ -107,6 +108,38 @@ function latLonToGrid(lat, lon, length) {
     const uLon = Math.floor((adjLon % 2) / (2 / 24)), uLat = Math.floor((adjLat % 1) / (1 / 24));
     grid += String.fromCharCode(97 + uLon) + String.fromCharCode(97 + uLat);
     return grid.toUpperCase();
+}
+
+// ── APRS Packet Formatter (APRS 1.01 spec) ──
+
+function padTarget(target) {
+    return target.padEnd(9, ' ').slice(0, 9);
+}
+
+function formatAPRSMessage(target, message, msgId) {
+    const t = padTarget(target);
+    let info = ':' + t + ':' + message;
+    if (msgId !== undefined && msgId !== null && msgId !== '') {
+        info += '{' + String(msgId).padStart(2, '0');
+    }
+    return info;
+}
+
+function formatAPRSPosition(lat, lon, symbol, symbolTable, comment) {
+    const latStr = latToAPRS(lat);
+    const lonStr = lonToAPRS(lon);
+    const st = symbolTable || '/';
+    const sy = symbol || '-';
+    let info = '=' + latStr + st + lonStr + sy;
+    if (comment) info += comment;
+    return info;
+}
+
+function formatAPRSFrame(source, dest, digipath, infoField) {
+    let frame = source + '>' + dest;
+    if (digipath && digipath !== 'DIRECT') frame += ',' + digipath;
+    frame += ':' + infoField;
+    return frame;
 }
 
 function extractAPRSData(info) {

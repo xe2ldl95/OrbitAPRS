@@ -1,4 +1,4 @@
-const CACHE_NAME = 'orbitaprs-v1.7.3';
+const CACHE_NAME = 'orbitaprs-v1.7.6';
 const ASSETS = [
     'index.html',
     'manifest.json',

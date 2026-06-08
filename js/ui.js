@@ -86,12 +86,12 @@ function sendQuickAction(action) {
     if (info[0] === ':') {
         const secondColon = info.indexOf(':', 1);
         if (secondColon > 1 && secondColon < 12) {
-            let dest = info.slice(1, secondColon);
+            const dest = info.slice(1, secondColon);
             const body = info.slice(secondColon + 1);
-            if (dest.length < 9) dest = dest.padEnd(9, ' ');
-            else if (dest.length > 9) dest = dest.slice(0, 9);
-            else dest = dest + ' ';
-            info = ':' + dest + ':' + body;
+            const msgIdMatch = body.match(/\{(\d{1,2})$/);
+            const msgId = msgIdMatch ? msgIdMatch[1] : null;
+            const msg = msgIdMatch ? body.slice(0, body.lastIndexOf('{')) : body;
+            info = formatAPRSMessage(dest, msg, msgId || String(state.msgIdCounter).padStart(2, '0'));
         }
         if (!/\{\d{2}$/.test(info)) {
             const seq = String(state.msgIdCounter).padStart(2, '0');
@@ -101,14 +101,16 @@ function sendQuickAction(action) {
         persistSettings();
     }
     const sourceCall = state.myCall;
+    const destCall = state.tocall || 'APZ100';
+    const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
     const packet = {
         infoField: info,
         sourceCall: sourceCall,
-        destCall: state.tocall || 'APZ100',
+        destCall: destCall,
         digipath: state.digipath,
-        fullPacket: sourceCall + ' > ' + (state.tocall || 'APZ100') + (state.digipath ? ',' + state.digipath : '') + ' : ' + info,
+        fullPacket: fullPacket,
     };
-    addTerminalLine('tx', packet.fullPacket);
+    addTerminalLine('tx', fullPacket);
     if (macro.logQSO && target && target.length >= 3 && state.selectedSat) {
         const pts = target.split(' ');
         const tc = pts[0], tg = pts[1] || '';
@@ -540,18 +542,19 @@ function sendFreeTextPacket() {
     persistSettings();
 
     const call = target.split(' ')[0];
-    const padded = call.length < 9 ? call.padEnd(9, ' ') : call.slice(0, 9);
-    const info = ':' + padded + ':' + raw + '{' + seq;
+    const info = formatAPRSMessage(call, raw, seq);
 
     const sourceCall = state.myCall;
+    const destCall = state.tocall || 'APZ100';
+    const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
     const packet = {
         infoField: info,
         sourceCall: sourceCall,
-        destCall: state.tocall || 'APZ100',
+        destCall: destCall,
         digipath: state.digipath,
-        fullPacket: sourceCall + ' > ' + (state.tocall || 'APZ100') + (state.digipath ? ',' + state.digipath : '') + ' : ' + info,
+        fullPacket: fullPacket,
     };
-    addTerminalLine('tx', packet.fullPacket);
+    addTerminalLine('tx', fullPacket);
     if (state.tnc && state.tnc.connected) {
         try {
             const ax25 = buildAX25Frame(packet);
