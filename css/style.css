@@ -89,10 +89,10 @@ body {
 .panel-body.no-padding { padding: 0; }
 
 .left-column { flex: 2; display: flex; flex-direction: column; gap: 4px; min-width: 360px; }
-.terminal-panel { flex: 2; }
+.terminal-panel { flex: 2; min-height: 0; }
 .terminal {
     background: var(--terminal-bg); font-family: var(--font-mono);
-    font-size: 0.82em; line-height: 1.6; padding: 10px; height: 100%;
+    font-size: 0.82em; line-height: 1.6; padding: 10px; flex: 1; min-height: 0;
     overflow-y: auto; color: var(--terminal-text); white-space: pre-wrap;
     word-break: break-all; user-select: text; -webkit-user-select: text;
 }
@@ -297,12 +297,20 @@ body {
 .leaflet-tooltip.qso-label.my { color: var(--accent2); }
 
 @media (max-width: 800px) {
-    .main-container { flex-direction: column; }
-    .right-column { max-width: 100%; flex-direction: row; flex: none; min-width: auto; max-height: 280px; }
+    .main-container { flex-direction: column; padding: 2px; gap: 2px; }
+    .right-column { max-width: 100%; flex-direction: row; flex: none; max-height: 280px; }
     .right-column .panel { flex: 1; min-width: 140px; }
     .left-column { min-width: auto; }
-    .header { padding: 6px 10px; gap: 4px; }
+    .terminal-panel { flex: 1; }
+    .input-panel { flex: 0 1 auto; min-height: 0; }
+    .header { padding: 4px 8px; gap: 2px; }
     .header .utc-clock { flex-direction: row; gap: 6px; padding: 2px 8px; font-size: 0.7em; }
     .header .utc-clock #utcDate { display: none; }
     .sat-selector b { font-size: 0.78em; }
+}
+@media (max-height: 480px) and (orientation: landscape) {
+    .main-container { padding: 1px; gap: 1px; }
+    .header { padding: 2px 6px; gap: 2px; }
+    .header .utc-clock { font-size: 0.6em; }
+    .right-column { max-height: 200px; }
 }
