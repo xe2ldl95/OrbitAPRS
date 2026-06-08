@@ -312,5 +312,5 @@ body {
     .main-container { padding: 1px; gap: 1px; }
     .header { padding: 2px 6px; gap: 2px; }
     .header .utc-clock { font-size: 0.6em; }
-    .right-column { max-height: 200px; }
+    .right-column { flex: 1; max-height: none; }
 }
