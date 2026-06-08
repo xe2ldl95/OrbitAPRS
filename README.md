@@ -177,7 +177,7 @@ Edit macro name, template, and log-QSO flag. Token reference:
 | Own repeat color | Color for own repeated packets | `#3b9fd4` |
 
 ### Licenses
-Version 1.7.6 — MIT License — XE2LDL / Luis 2026
+Version 1.7.7 — MIT License — XE2LDL / Luis 2026
 - Leaflet 1.9.4 (BSD-2-Clause)
 - satellite.js (MIT)
 - CartoDB dark tiles (CC-BY-4.0)
@@ -238,3 +238,4 @@ MIT License — see license text in the Licenses tab.
 | Tag | Date | Changes |
 |-----|------|---------|
 | v1.7.6 | 2026-06-08 | APRS 1.01 formatter (`padTarget`, `formatAPRS*`). Fix AX.25 SSID byte (0x40→0x60), source extension bit with digis. Fix CQ/Msg macro targets. Fix padding bug in sendQuickAction (extra space at 9 chars). |
+| v1.7.7 | 2026-06-08 | Fix Pos macro symbol: satellite/airplane (`/^`) → portable station (`\[`). |
