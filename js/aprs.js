@@ -63,7 +63,8 @@ function _ax25AddrAt(data, off) {
         if (c !== ' ') call += c;
     }
     const ssid = (data[off + 6] >> 1) & 0x0F;
-    return { base: call, ssid: ssid, full: ssid > 0 ? call + '-' + ssid : call };
+    const repeated = !!(data[off + 6] & 0x80); // bit 7 H-bit: 1 = repeated by digipeater
+    return { base: call, ssid: ssid, full: ssid > 0 ? call + '-' + ssid : call, repeated };
 }
 
 function parseAX25Frame(bytes) {
@@ -77,8 +78,11 @@ function parseAX25Frame(bytes) {
     const dst = _ax25AddrAt(data, 0);
     const src = _ax25AddrAt(data, 7);
     const digiPath = [];
+    const digiRepeated = [];
     for (let i = 14; i < addrEnd; i += 7) {
-        digiPath.push(_ax25AddrAt(data, i).full);
+        const d = _ax25AddrAt(data, i);
+        digiPath.push(d.full);
+        digiRepeated.push(d.repeated);
     }
     let infoField = '';
     for (let i = addrEnd + 2; i < data.length; i++) {
@@ -92,6 +96,7 @@ function parseAX25Frame(bytes) {
         destBase: dst.base,
         destSSID: dst.ssid,
         digiPath: digiPath,
+        digiRepeated: digiRepeated,
         info: infoField,
     };
 }

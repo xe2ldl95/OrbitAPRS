@@ -155,6 +155,7 @@ function addTerminalLine(type, message) {
     if (type === 'tx') color = state.termColorTx;
     else if (type === 'rx') color = state.termColorRx;
     else if (type === 'rx-echo') color = state.termColorEcho;
+    else if (type === 'rx-rpt') color = state.termColorOwn;
     if (color) line.style.color = color;
     line.innerHTML = '<span class="timestamp">[' + ts + ']</span> ' + escapeHTML(message);
     terminal.appendChild(line);
@@ -295,7 +296,10 @@ function tncConnect() {
     if (!state.tnc) state.tnc = new TNC();
     state.tnc.onPacket = (pkt) => {
         const isOwn = pkt.source.toUpperCase() === state.myCall.toUpperCase();
-        addTerminalLine(isOwn ? 'rx-echo' : 'rx', (isOwn ? 'ECHO ' : '') + pkt.source + ' > ' + pkt.dest + ' : ' + pkt.info);
+        const isRpt = isOwn && pkt.digiRepeated && pkt.digiRepeated.some(r => r);
+        const lineType = isOwn ? (isRpt ? 'rx-rpt' : 'rx-echo') : 'rx';
+        const label = isOwn ? (isRpt ? 'RPT ' : 'ECHO ') : '';
+        addTerminalLine(lineType, label + pkt.source + ' > ' + pkt.dest + ' : ' + pkt.info);
         document.getElementById('tncStatusDot').className = 'status-dot active';
         logPacketFromTNC(pkt);
         const aprsFromPkt = extractAPRSData(pkt.info);
