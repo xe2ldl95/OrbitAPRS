@@ -258,7 +258,7 @@
                         iconAnchor: [5, 5],
                     })
                 });
-                m.bindTooltip(h.call, { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
+                m.bindTooltip('<span style="color:' + color + ';">' + h.call + '</span>', { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
                 _heardGroup.addLayer(m);
                 if (state.mapShowGeodesic) {
                     var dist = calculateGridDistance(state.myGrid, h.grid);
@@ -324,7 +324,7 @@
                 iconAnchor: [5, 5],
             })
         });
-        dxM.bindTooltip(qso.call, { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
+        dxM.bindTooltip('<span style="color:' + qsoColor + ';">' + qso.call + '</span>', { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
         _qsoGroup.addLayer(dxM);
 
         var myM = L.marker(myPos, { icon: myIcon });
