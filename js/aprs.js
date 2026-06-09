@@ -163,7 +163,8 @@ function extractAPRSData(info) {
         result.comment = body.replace(latLonMatch ? latLonMatch[0] : '', '').replace(/\[.*?\]/, '').trim() || null;
     }
     if (info[0] === ':') {
-        const body = info.length > 11 ? info.slice(11).replace(/\{[\da-zA-Z]{1,2}$/, '').trim() : '';
+        const secondColon = info.indexOf(':', 1);
+        const body = secondColon > 0 && info.length > secondColon + 1 ? info.slice(secondColon + 1).replace(/\{[\da-zA-Z]{1,2}$/, '').trim() : '';
         const gridKeyword = body.match(/(?:^|\s)(?:GRID|UR)\s+([A-Ra-r]{2}[0-9]{2}(?:[A-Xa-x]{2})?)/i);
         if (gridKeyword) result.grid = gridKeyword[1].toUpperCase();
         if (!result.grid) {

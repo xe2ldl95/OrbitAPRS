@@ -111,30 +111,29 @@ function sendQuickAction(action) {
         fullPacket: fullPacket,
     };
     addTerminalLine('tx', fullPacket);
-    if (macro.logQSO && target && target.length >= 3 && state.selectedSat) {
-        const pts = target.split(' ');
-        const tc = pts[0], tg = pts[1] || '';
-        if (tc.length >= 3) {
-            // Register as pending QSO (awaiting confirmation from other station)
-            const existing = state.pendingQSOs.findIndex(p =>
-                p.call === tc.toUpperCase() && p.satId === state.selectedSat
-            );
-            if (existing < 0) {
-                state.pendingQSOs.push({
-                    call: tc.toUpperCase(),
-                    grid: tg.toUpperCase() || '--',
-                    satId: state.selectedSat,
-                    time: getUTCNow(),
-                });
-                persistSettings();
-                addTerminalLine('system', 'QSO pending with ' + tc.toUpperCase() + ' (awaiting RX confirmation)');
-            }
-        }
-    }
     if (state.tnc && state.tnc.connected) {
         try {
             const ax25 = buildAX25Frame(packet);
             state.tnc.send(ax25);
+            if (macro.logQSO && target && target.length >= 3 && state.selectedSat) {
+                const pts = target.split(' ');
+                const tc = pts[0], tg = pts[1] || '';
+                if (tc.length >= 3) {
+                    const existing = state.pendingQSOs.findIndex(p =>
+                        p.call === tc.toUpperCase() && p.satId === state.selectedSat
+                    );
+                    if (existing < 0) {
+                        state.pendingQSOs.push({
+                            call: tc.toUpperCase(),
+                            grid: tg.toUpperCase() || '--',
+                            satId: state.selectedSat,
+                            time: getUTCNow(),
+                        });
+                        persistSettings();
+                        addTerminalLine('system', 'QSO pending with ' + tc.toUpperCase() + ' (awaiting RX confirmation)');
+                    }
+                }
+            }
         } catch (e) {
             showToast('TX error: ' + e.message, true);
         }
@@ -357,13 +356,14 @@ function tncDisconnect() {
 
 function logQSO(satId, targetCall, targetGrid, rstSent, rstRcvd, status) {
     const sat = satelliteDB.find(s => s.id === satId) || { name: 'Unknown', freq: state.txFreq };
+    const actualFreq = state.txFreq || sat.freq;
     const dist = calculateGridDistance(state.myGrid, targetGrid);
     const qso = {
         utc: getUTCNow(),
         utcShort: getUTCShort(),
         satellite: sat.name,
         satId: satId,
-        freq: sat.freq,
+        freq: actualFreq,
         call: targetCall.toUpperCase(),
         grid: targetGrid.toUpperCase(),
         rstSent: rstSent || state.rstDefault,
