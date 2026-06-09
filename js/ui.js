@@ -299,7 +299,7 @@ function tncConnect() {
         const isRpt = isOwn && pkt.digiRepeated && pkt.digiRepeated.some(r => r);
         const lineType = isOwn ? (isRpt ? 'rx-rpt' : 'rx-echo') : 'rx';
         const label = isOwn ? (isRpt ? 'RPT ' : 'ECHO ') : '';
-        addTerminalLine(lineType, label + pkt.source + ' > ' + pkt.dest + ' : ' + pkt.info);
+        addTerminalLine(lineType, pkt.source + ' > ' + pkt.dest + ' : ' + pkt.info);
         document.getElementById('tncStatusDot').className = 'status-dot active';
         logPacketFromTNC(pkt);
         const aprsFromPkt = extractAPRSData(pkt.info);
