@@ -242,13 +242,7 @@
         var show = isTerrestrial ? state.mapShowHeardTer : state.mapShowHeardSat;
         if (!show) return;
         var color = isTerrestrial ? state.mapColorHeardTer : state.mapColorHeardSat;
-        var iconSize = isTerrestrial ? 16 : 10;
-        var icon = L.divIcon({
-            className: '',
-            html: '<div style="width:' + iconSize + 'px;height:' + iconSize + 'px;border-radius:50%;background:' + color + ';opacity:0.8;border:1px solid rgba(255,255,255,0.3);"></div>',
-            iconSize: [iconSize, iconSize],
-            iconAnchor: [iconSize / 2, iconSize / 2],
-        });
+        var myPos = [state.myLat, state.myLon];
         for (var i = 0; i < state.heardStations.length; i++) {
             var h = state.heardStations[i];
             if (!h.grid) continue;
@@ -256,13 +250,34 @@
             try {
                 var pos = gridToLatLon(h.grid);
                 if (!pos) continue;
-                var m = L.marker([pos.lat, pos.lon], { icon: icon });
-                if (isTerrestrial) {
-                    m.bindTooltip(h.call, { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
-                } else {
-                    m.bindPopup('<b>' + h.call + '</b><br>Grid: ' + h.grid);
-                }
+                var m = L.marker([pos.lat, pos.lon], {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';opacity:0.8;border:1px solid rgba(255,255,255,0.3);"></div>',
+                        iconSize: [10, 10],
+                        iconAnchor: [5, 5],
+                    })
+                });
+                m.bindTooltip(h.call, { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
                 _heardGroup.addLayer(m);
+                if (state.mapShowGeodesic) {
+                    var dist = calculateGridDistance(state.myGrid, h.grid);
+                    var geoPts = geodesicLine(myPos[0], myPos[1], pos.lat, pos.lon, 32);
+                    L.polyline(geoPts, { color: color, weight: 1, opacity: 0.5, dashArray: '3, 6' }).addTo(_heardGroup);
+                    if (dist) {
+                        var midLat = (myPos[0] + pos.lat) / 2;
+                        var midLon = (myPos[1] + pos.lon) / 2;
+                        var distLabel = L.marker([midLat, midLon], {
+                            icon: L.divIcon({
+                                className: '',
+                                html: '<div style="color:' + color + ';font-size:10pt;font-weight:700;font-family:monospace;text-shadow:0 0 8px #000;white-space:nowrap;pointer-events:none;">' + dist.toFixed(0) + ' km</div>',
+                                iconSize: [0, 0],
+                                iconAnchor: [0, 0],
+                            })
+                        });
+                        _heardGroup.addLayer(distLabel);
+                    }
+                }
             } catch (e) {}
         }
     }
@@ -300,14 +315,15 @@
         while (dxPos[1] - myPos[1] < -180) dxPos[1] += 360;
 
         var qsoColor = state.mapColorQSO || '#3b9fd4';
-        var qsoIcon = L.divIcon({
-            className: '',
-            html: '<div style="width:16px;height:16px;border-radius:50%;background:' + qsoColor + ';border:2px solid rgba(255,255,255,0.4);"></div>',
-            iconSize: [16, 16],
-            iconAnchor: [8, 8],
-        });
 
-        var dxM = L.marker(dxPos, { icon: qsoIcon });
+        var dxM = L.marker(dxPos, {
+            icon: L.divIcon({
+                className: '',
+                html: '<div style="width:10px;height:10px;border-radius:50%;background:' + qsoColor + ';border:1px solid rgba(255,255,255,0.3);"></div>',
+                iconSize: [10, 10],
+                iconAnchor: [5, 5],
+            })
+        });
         dxM.bindTooltip(qso.call, { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
         _qsoGroup.addLayer(dxM);
 
@@ -315,21 +331,23 @@
         myM.bindTooltip(state.myCall, { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label my' });
         _qsoGroup.addLayer(myM);
 
-        var geoPts = geodesicLine(myPos[0], myPos[1], dxPos[0], dxPos[1], 64);
-        L.polyline(geoPts, { color: qsoColor, weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(_qsoGroup);
+        if (state.mapShowGeodesic) {
+            var geoPts = geodesicLine(myPos[0], myPos[1], dxPos[0], dxPos[1], 64);
+            L.polyline(geoPts, { color: qsoColor, weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(_qsoGroup);
 
-        if (qso.distanceKm) {
-            var midLat = (myPos[0] + dxPos[0]) / 2;
-            var midLon = (myPos[1] + dxPos[1]) / 2;
-            var distLabel = L.marker([midLat, midLon], {
-                icon: L.divIcon({
-                    className: '',
-                    html: '<div style="color:' + qsoColor + ';font-size:12pt;font-weight:700;font-family:monospace;text-shadow:0 0 8px #000;white-space:nowrap;pointer-events:none;">' + qso.distanceKm.toFixed(0) + ' km</div>',
-                    iconSize: [0, 0],
-                    iconAnchor: [0, 0],
-                })
-            });
-            _qsoGroup.addLayer(distLabel);
+            if (qso.distanceKm) {
+                var midLat = (myPos[0] + dxPos[0]) / 2;
+                var midLon = (myPos[1] + dxPos[1]) / 2;
+                var distLabel = L.marker([midLat, midLon], {
+                    icon: L.divIcon({
+                        className: '',
+                        html: '<div style="color:' + qsoColor + ';font-size:10pt;font-weight:700;font-family:monospace;text-shadow:0 0 8px #000;white-space:nowrap;pointer-events:none;">' + qso.distanceKm.toFixed(0) + ' km</div>',
+                        iconSize: [0, 0],
+                        iconAnchor: [0, 0],
+                    })
+                });
+                _qsoGroup.addLayer(distLabel);
+            }
         }
 
         var bounds = L.latLngBounds(myPos, dxPos);
@@ -341,12 +359,6 @@
         var bounds = L.latLngBounds(myPos, myPos);
         var any = false;
         var qsoColor = state.mapColorQSO || '#3b9fd4';
-        var qsoIcon = L.divIcon({
-            className: '',
-            html: '<div style="width:12px;height:12px;border-radius:50%;background:' + qsoColor + ';border:1px solid rgba(255,255,255,0.3);"></div>',
-            iconSize: [12, 12],
-            iconAnchor: [6, 6],
-        });
 
         for (var i = 0; i < state.qsoLog.length; i++) {
             var qso = state.qsoLog[i];
@@ -358,11 +370,20 @@
             while (dxPos[1] - myPos[1] > 180) dxPos[1] -= 360;
             while (dxPos[1] - myPos[1] < -180) dxPos[1] += 360;
 
-            var m = L.marker(dxPos, { icon: qsoIcon });
+            var m = L.marker(dxPos, {
+                icon: L.divIcon({
+                    className: '',
+                    html: '<div style="width:10px;height:10px;border-radius:50%;background:' + qsoColor + ';border:1px solid rgba(255,255,255,0.3);"></div>',
+                    iconSize: [10, 10],
+                    iconAnchor: [5, 5],
+                })
+            });
             _qsoGroup.addLayer(m);
 
-            var geoPts = geodesicLine(myPos[0], myPos[1], dxPos[0], dxPos[1], 32);
-            L.polyline(geoPts, { color: qsoColor, weight: 1, opacity: 0.5, dashArray: '3, 6' }).addTo(_qsoGroup);
+            if (state.mapShowGeodesic) {
+                var geoPts = geodesicLine(myPos[0], myPos[1], dxPos[0], dxPos[1], 32);
+                L.polyline(geoPts, { color: qsoColor, weight: 1, opacity: 0.5, dashArray: '3, 6' }).addTo(_qsoGroup);
+            }
 
             bounds.extend(dxPos);
             any = true;

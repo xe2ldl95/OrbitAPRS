@@ -40,6 +40,7 @@ const state = {
     mapShowHeardTer: true,
     mapShowQSO: true,
     mapShowSat: true,
+    mapShowGeodesic: true,
     mapColorHeardSat: '#3498db',
     mapColorHeardTer: '#f0a030',
     mapColorQSO: '#2ecc71',
@@ -183,6 +184,7 @@ function loadSettings() {
                 state.mapShowHeardTer = s.mapShowHeardTer !== undefined ? s.mapShowHeardTer : true;
                 state.mapShowQSO = s.mapShowQSO !== undefined ? s.mapShowQSO : true;
                 state.mapShowSat = s.mapShowSat !== undefined ? s.mapShowSat : true;
+                state.mapShowGeodesic = s.mapShowGeodesic !== undefined ? s.mapShowGeodesic : true;
                 state.mapColorHeardSat = s.mapColorHeardSat || '#3498db';
                 state.mapColorHeardTer = s.mapColorHeardTer || '#f0a030';
                 state.mapColorQSO = s.mapColorQSO || '#2ecc71';
@@ -216,6 +218,7 @@ function populateSettingsFields() {
     document.getElementById('mapShowHeardTer').checked = state.mapShowHeardTer;
     document.getElementById('mapShowQSO').checked = state.mapShowQSO;
     document.getElementById('mapShowSat').checked = state.mapShowSat;
+    document.getElementById('mapShowGeodesic').checked = state.mapShowGeodesic;
     document.getElementById('mapColorHeardSat').value = state.mapColorHeardSat;
     document.getElementById('mapColorHeardTer').value = state.mapColorHeardTer;
     document.getElementById('mapColorQSO').value = state.mapColorQSO;
@@ -247,6 +250,7 @@ function saveSettings() {
     state.mapShowHeardTer = document.getElementById('mapShowHeardTer').checked;
     state.mapShowQSO = document.getElementById('mapShowQSO').checked;
     state.mapShowSat = document.getElementById('mapShowSat').checked;
+    state.mapShowGeodesic = document.getElementById('mapShowGeodesic').checked;
     state.mapColorHeardSat = document.getElementById('mapColorHeardSat').value;
     state.mapColorHeardTer = document.getElementById('mapColorHeardTer').value;
     state.mapColorQSO = document.getElementById('mapColorQSO').value;
@@ -258,6 +262,7 @@ function saveSettings() {
     persistSettings();
     updateDisplays();
     if (typeof mapView !== 'undefined' && mapView.updateMyStation) mapView.updateMyStation();
+    if (typeof mapView !== 'undefined' && mapView.updateHeard) mapView.updateHeard();
     refreshSatPasses();
     toggleModal('settingsModal', false);
     showToast('Settings saved');
@@ -430,7 +435,7 @@ function persistSettings() {
             satFreqOverrides: state.satFreqOverrides, elevationOffset: state.elevationOffset,
             userSatellites: state.userSatellites,
             mapShowHeardSat: state.mapShowHeardSat, mapShowHeardTer: state.mapShowHeardTer,
-            mapShowQSO: state.mapShowQSO, mapShowSat: state.mapShowSat,
+            mapShowQSO: state.mapShowQSO, mapShowSat: state.mapShowSat, mapShowGeodesic: state.mapShowGeodesic,
             mapColorHeardSat: state.mapColorHeardSat, mapColorHeardTer: state.mapColorHeardTer,
             mapColorQSO: state.mapColorQSO, mapColorSat: state.mapColorSat,
             termColorTx: state.termColorTx, termColorRx: state.termColorRx,
