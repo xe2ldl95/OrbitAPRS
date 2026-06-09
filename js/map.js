@@ -258,26 +258,15 @@
                         iconAnchor: [5, 5],
                     })
                 });
-                m.bindTooltip('<span style="color:' + color + ';">' + h.call + '</span>', { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
-                _heardGroup.addLayer(m);
+                var tooltipText = h.call;
                 if (state.mapShowGeodesic) {
                     var dist = calculateGridDistance(state.myGrid, h.grid);
                     var geoPts = geodesicLine(myPos[0], myPos[1], pos.lat, pos.lon, 32);
                     L.polyline(geoPts, { color: color, weight: 1, opacity: 0.5, dashArray: '3, 6' }).addTo(_heardGroup);
-                    if (dist) {
-                        var midLat = (myPos[0] + pos.lat) / 2;
-                        var midLon = (myPos[1] + pos.lon) / 2;
-                        var distLabel = L.marker([midLat, midLon], {
-                            icon: L.divIcon({
-                                className: '',
-                                html: '<div style="color:' + color + ';font-size:10pt;font-weight:700;font-family:monospace;text-shadow:0 0 8px #000;white-space:nowrap;pointer-events:none;">' + dist.toFixed(0) + ' km</div>',
-                                iconSize: [0, 0],
-                                iconAnchor: [0, 0],
-                            })
-                        });
-                        _heardGroup.addLayer(distLabel);
-                    }
+                    if (dist) tooltipText += ' (' + dist.toFixed(0) + ' km)';
                 }
+                m.bindTooltip('<span style="color:' + color + ';">' + tooltipText + '</span>', { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
+                _heardGroup.addLayer(m);
             } catch (e) {}
         }
     }
@@ -316,6 +305,13 @@
 
         var qsoColor = state.mapColorQSO || '#3b9fd4';
 
+        var dxTooltip = qso.call;
+        if (state.mapShowGeodesic) {
+            var geoPts = geodesicLine(myPos[0], myPos[1], dxPos[0], dxPos[1], 64);
+            L.polyline(geoPts, { color: qsoColor, weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(_qsoGroup);
+            if (qso.distanceKm) dxTooltip += ' (' + qso.distanceKm.toFixed(0) + ' km)';
+        }
+
         var dxM = L.marker(dxPos, {
             icon: L.divIcon({
                 className: '',
@@ -324,31 +320,12 @@
                 iconAnchor: [5, 5],
             })
         });
-        dxM.bindTooltip('<span style="color:' + qsoColor + ';">' + qso.call + '</span>', { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
+        dxM.bindTooltip('<span style="color:' + qsoColor + ';">' + dxTooltip + '</span>', { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label dx' });
         _qsoGroup.addLayer(dxM);
 
         var myM = L.marker(myPos, { icon: myIcon });
         myM.bindTooltip(state.myCall, { permanent: true, direction: 'right', offset: [10, 0], className: 'qso-label my' });
         _qsoGroup.addLayer(myM);
-
-        if (state.mapShowGeodesic) {
-            var geoPts = geodesicLine(myPos[0], myPos[1], dxPos[0], dxPos[1], 64);
-            L.polyline(geoPts, { color: qsoColor, weight: 2, opacity: 0.8, dashArray: '5, 10' }).addTo(_qsoGroup);
-
-            if (qso.distanceKm) {
-                var midLat = (myPos[0] + dxPos[0]) / 2;
-                var midLon = (myPos[1] + dxPos[1]) / 2;
-                var distLabel = L.marker([midLat, midLon], {
-                    icon: L.divIcon({
-                        className: '',
-                        html: '<div style="color:' + qsoColor + ';font-size:10pt;font-weight:700;font-family:monospace;text-shadow:0 0 8px #000;white-space:nowrap;pointer-events:none;">' + qso.distanceKm.toFixed(0) + ' km</div>',
-                        iconSize: [0, 0],
-                        iconAnchor: [0, 0],
-                    })
-                });
-                _qsoGroup.addLayer(distLabel);
-            }
-        }
 
         var bounds = L.latLngBounds(myPos, dxPos);
         _map.fitBounds(bounds, { padding: [50, 50] });
