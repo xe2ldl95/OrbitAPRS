@@ -1,3 +1,11 @@
+function msgDestIsForUs(info) {
+    if (!info || info[0] !== ':') return true;
+    var secondColon = info.indexOf(':', 1);
+    if (secondColon < 0) return false;
+    var dest = info.slice(1, secondColon).trim().toUpperCase();
+    return dest === state.myCall.toUpperCase();
+}
+
 function logPacketFromTNC(parsed) {
     // Skip internet-routed packets (TCPIP* / NOGATE in digi path)
     if (parsed.digiPath && parsed.digiPath.some(function(d) {
@@ -15,7 +23,7 @@ function logPacketFromTNC(parsed) {
         var pendingIdx = state.pendingQSOs.findIndex(function(p) {
             return (p.call === matchKey || p.call === matchBase) && p.satId === state.selectedSat;
         });
-        if (pendingIdx >= 0) {
+        if (pendingIdx >= 0 && msgDestIsForUs(parsed.info)) {
             var pending = state.pendingQSOs[pendingIdx];
             var aprsData = extractAPRSData(parsed.info);
             var remoteGrid = aprsData.grid || pending.grid;
