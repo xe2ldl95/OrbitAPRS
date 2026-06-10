@@ -26,7 +26,7 @@ const state = {
     tncBaud: '57600',
     logLines: 300,
     autoQSO: true,
-    tocall: 'APZ100',
+    tocall: 'APRS',
     rstDefault: '59',
     msgIdCounter: 0,
     lastTLEUpdate: null,
@@ -173,7 +173,7 @@ function loadSettings() {
                 state.autoQSO = s.autoQSO !== undefined ? s.autoQSO : true;
                 state.rawMonitor = s.rawMonitor || false;
                 state.rstDefault = s.rstDefault || '59';
-                state.tocall = s.tocall || 'APZ100';
+                state.tocall = s.tocall || 'APRS';
                 state.msgIdCounter = s.msgIdCounter !== undefined ? s.msgIdCounter : 0;
                 state.lastTLEUpdate = s.lastTLEUpdate || null;
                 state.macros = (s.macros && s.macros.length && s.macros[0].template) ? s.macros : DEFAULT_MACROS.map(m => ({...m}));

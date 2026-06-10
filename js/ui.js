@@ -101,7 +101,11 @@ function sendQuickAction(action) {
         persistSettings();
     }
     const sourceCall = state.myCall;
-    const destCall = state.tocall || 'APZ100';
+    let destCall = state.tocall || 'APRS';
+    if (info[0] === ':') {
+        const sc = info.indexOf(':', 1);
+        if (sc > 1) destCall = info.slice(1, sc).trim();
+    }
     const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
     const packet = {
         infoField: info,
