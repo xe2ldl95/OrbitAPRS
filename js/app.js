@@ -1,6 +1,6 @@
 const DEFAULT_MACROS = [
     { id: 'm0', name: 'CQ',  icon: '📡', template: ':CQ:%G via %S{%N',              logQSO: false },
-    { id: 'm1', name: 'Rpt', icon: '📻', template: ':%C:599{%N',                     logQSO: true  },
+    { id: 'm1', name: 'Rpt', icon: '📻', template: ':%C:%RST{%N',                    logQSO: true  },
     { id: 'm2', name: '73',  icon: '💬', template: ':%C:QSL TU 73{%N',               logQSO: true  },
     { id: 'm3', name: 'Msg', icon: '✉️', template: ':CQ:via %S{%N',            logQSO: false },
     { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}\\{lon}[Por',               logQSO: false },
@@ -26,7 +26,7 @@ const state = {
     tncBaud: '57600',
     logLines: 300,
     autoQSO: true,
-    tocall: 'APRS',
+    tocall: 'CQ',
     rstDefault: '59',
     msgIdCounter: 0,
     lastTLEUpdate: null,
@@ -173,7 +173,7 @@ function loadSettings() {
                 state.autoQSO = s.autoQSO !== undefined ? s.autoQSO : true;
                 state.rawMonitor = s.rawMonitor || false;
                 state.rstDefault = s.rstDefault || '59';
-                state.tocall = s.tocall || 'APRS';
+                state.tocall = s.tocall || 'CQ';
                 state.msgIdCounter = s.msgIdCounter !== undefined ? s.msgIdCounter : 0;
                 state.lastTLEUpdate = s.lastTLEUpdate || null;
                 state.macros = (s.macros && s.macros.length && s.macros[0].template) ? s.macros : DEFAULT_MACROS.map(m => ({...m}));
@@ -213,7 +213,7 @@ function populateSettingsFields() {
     document.getElementById('setAutoQSO').value = state.autoQSO ? '1' : '0';
     document.getElementById('setRawMonitor').checked = state.rawMonitor;
     document.getElementById('setRstDefault').value = state.rstDefault;
-    document.getElementById('setTocall').value = state.tocall || 'APZ100';
+    document.getElementById('setTocall').value = state.tocall || 'CQ';
     document.getElementById('mapShowHeardSat').checked = state.mapShowHeardSat;
     document.getElementById('mapShowHeardTer').checked = state.mapShowHeardTer;
     document.getElementById('mapShowQSO').checked = state.mapShowQSO;
@@ -245,7 +245,7 @@ function saveSettings() {
     state.autoQSO = document.getElementById('setAutoQSO').value === '1';
     state.rawMonitor = document.getElementById('setRawMonitor').checked;
     state.rstDefault = document.getElementById('setRstDefault').value || '59';
-    state.tocall = document.getElementById('setTocall').value.toUpperCase().trim() || 'APZ100';
+    state.tocall = document.getElementById('setTocall').value.toUpperCase().trim() || 'CQ';
     state.mapShowHeardSat = document.getElementById('mapShowHeardSat').checked;
     state.mapShowHeardTer = document.getElementById('mapShowHeardTer').checked;
     state.mapShowQSO = document.getElementById('mapShowQSO').checked;
@@ -449,7 +449,7 @@ function updateDisplays() {
     document.getElementById('myGridDisplay').textContent = state.myGrid;
     document.getElementById('txFreqDisplay').textContent = state.txFreq.toFixed(3) + ' MHz';
     document.getElementById('pathDisplay').textContent = state.digipath;
-    document.getElementById('tocallDisplay').textContent = state.tocall || 'APZ100';
+    document.getElementById('tocallDisplay').textContent = state.tocall || 'CQ';
     const sat = satelliteDB.find(s => s.id === state.selectedSat);
     if (sat) document.getElementById('satNameDisplay').textContent = sat.name.split(' ')[0];
     renderQSOs();

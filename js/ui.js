@@ -14,6 +14,7 @@ function resolveMacroTemplate(macro, target) {
     t = t.replace(/%R/g, tloc);
     t = t.replace(/%S/g, satName);
     t = t.replace(/%N/g, seq);
+    t = t.replace(/%RST/g, state.rstDefault || '59');
     // Legacy brace tokens (backward compatibility)
     t = t.replace(/\{mycall\}/g, state.myCall || 'N0CALL');
     t = t.replace(/\{mygrid\}/g, (state.myGrid || '--').toUpperCase());
@@ -101,11 +102,7 @@ function sendQuickAction(action) {
         persistSettings();
     }
     const sourceCall = state.myCall;
-    let destCall = state.tocall || 'APRS';
-    if (info[0] === ':') {
-        const sc = info.indexOf(':', 1);
-        if (sc > 1) destCall = info.slice(1, sc).trim();
-    }
+    const destCall = 'CQ';
     const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
     const packet = {
         infoField: info,
@@ -553,7 +550,7 @@ function sendFreeTextPacket() {
     const info = formatAPRSMessage(call, raw, seq);
 
     const sourceCall = state.myCall;
-    const destCall = state.tocall || 'APZ100';
+    const destCall = 'CQ';
     const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
     const packet = {
         infoField: info,
