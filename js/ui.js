@@ -11,10 +11,10 @@ function resolveMacroTemplate(macro, target) {
     t = t.replace(/%c/g, tcall.split('-')[0]);
     t = t.replace(/%M/g, state.myCall || 'N0CALL');
     t = t.replace(/%G/g, (state.myGrid || '--').toUpperCase());
+    t = t.replace(/%RST/g, state.rstDefault || '59');
     t = t.replace(/%R/g, tloc);
     t = t.replace(/%S/g, satName);
     t = t.replace(/%N/g, seq);
-    t = t.replace(/%RST/g, state.rstDefault || '59');
     // Legacy brace tokens (backward compatibility)
     t = t.replace(/\{mycall\}/g, state.myCall || 'N0CALL');
     t = t.replace(/\{mygrid\}/g, (state.myGrid || '--').toUpperCase());
