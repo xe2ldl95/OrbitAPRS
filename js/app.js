@@ -3,7 +3,7 @@ const DEFAULT_MACROS = [
     { id: 'm1', name: 'Rpt', icon: '📻', template: ':%C:%RST{%N',                    logQSO: true  },
     { id: 'm2', name: '73',  icon: '💬', template: ':%C:QSL TU 73{%N',               logQSO: true  },
     { id: 'm3', name: 'Msg', icon: '✉️', template: ':CQ:via %S{%N',            logQSO: false },
-    { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}\\{lon}[Por',               logQSO: false },
+    { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}/{lon}[Por',                logQSO: false },
 ];
 
 var compassHeading = null;
