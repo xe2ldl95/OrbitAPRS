@@ -102,7 +102,7 @@ function sendQuickAction(action) {
         persistSettings();
     }
     const sourceCall = state.myCall;
-    const destCall = 'CQ';
+    const destCall = state.tocall || 'CQ';
     const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
     const packet = {
         infoField: info,
@@ -550,7 +550,7 @@ function sendFreeTextPacket() {
     const info = formatAPRSMessage(call, raw, seq);
 
     const sourceCall = state.myCall;
-    const destCall = 'CQ';
+    const destCall = state.tocall || 'CQ';
     const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
     const packet = {
         infoField: info,
