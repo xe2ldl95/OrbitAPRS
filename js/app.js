@@ -6,6 +6,12 @@ const DEFAULT_MACROS = [
     { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}/{lon}[Por',                logQSO: false },
 ];
 
+function isSatMode() {
+    if (!state.selectedSat || typeof satelliteDB === 'undefined') return false;
+    const sat = satelliteDB.find(s => s.id === state.selectedSat);
+    return sat && sat.type !== 'terrestrial';
+}
+
 var compassHeading = null;
 var compassRaw = { alpha: null, beta: null, gamma: null, webkit: null };
 var _compassDeviceListenerAdded = false;
@@ -26,7 +32,10 @@ const state = {
     tncBaud: '57600',
     logLines: 300,
     autoQSO: true,
-    tocall: 'CQ',
+    tocallMsgSat: 'CQ',
+    tocallPosSat: 'APRS',
+    tocallMsgTer: 'APRS',
+    tocallPosTer: 'APRS',
     rstDefault: '59',
     msgIdCounter: 0,
     lastTLEUpdate: null,
@@ -173,7 +182,10 @@ function loadSettings() {
                 state.autoQSO = s.autoQSO !== undefined ? s.autoQSO : true;
                 state.rawMonitor = s.rawMonitor || false;
                 state.rstDefault = s.rstDefault || '59';
-                state.tocall = s.tocall || 'CQ';
+                state.tocallMsgSat = s.tocallMsgSat || s.tocall || 'CQ';
+                state.tocallPosSat = s.tocallPosSat || s.tocall || 'APRS';
+                state.tocallMsgTer = s.tocallMsgTer || s.tocall || 'APRS';
+                state.tocallPosTer = s.tocallPosTer || s.tocall || 'APRS';
                 state.msgIdCounter = s.msgIdCounter !== undefined ? s.msgIdCounter : 0;
                 state.lastTLEUpdate = s.lastTLEUpdate || null;
                 state.macros = (s.macros && s.macros.length && s.macros[0].template) ? s.macros : DEFAULT_MACROS.map(m => ({...m}));
@@ -213,7 +225,7 @@ function populateSettingsFields() {
     document.getElementById('setAutoQSO').value = state.autoQSO ? '1' : '0';
     document.getElementById('setRawMonitor').checked = state.rawMonitor;
     document.getElementById('setRstDefault').value = state.rstDefault;
-    document.getElementById('setTocall').value = state.tocall || 'CQ';
+    updateTocallFields();
     document.getElementById('mapShowHeardSat').checked = state.mapShowHeardSat;
     document.getElementById('mapShowHeardTer').checked = state.mapShowHeardTer;
     document.getElementById('mapShowQSO').checked = state.mapShowQSO;
@@ -227,6 +239,16 @@ function populateSettingsFields() {
     document.getElementById('termColorRx').value = state.termColorRx;
     document.getElementById('termColorEcho').value = state.termColorEcho;
     document.getElementById('termColorOwn').value = state.termColorOwn;
+    updateTocallFields();
+}
+
+function updateTocallFields() {
+    const isSat = isSatMode();
+    const mode = isSat ? 'SAT' : 'TER';
+    document.getElementById('labelTocallMsg').textContent = 'Tocall messages (' + mode + ')';
+    document.getElementById('labelTocallPos').textContent = 'Tocall position (' + mode + ')';
+    document.getElementById('setTocallMsg').value = isSat ? state.tocallMsgSat : state.tocallMsgTer;
+    document.getElementById('setTocallPos').value = isSat ? state.tocallPosSat : state.tocallPosTer;
 }
 
 function saveSettings() {
@@ -245,7 +267,13 @@ function saveSettings() {
     state.autoQSO = document.getElementById('setAutoQSO').value === '1';
     state.rawMonitor = document.getElementById('setRawMonitor').checked;
     state.rstDefault = document.getElementById('setRstDefault').value || '59';
-    state.tocall = document.getElementById('setTocall').value.toUpperCase().trim() || 'CQ';
+    if (isSatMode()) {
+        state.tocallMsgSat = document.getElementById('setTocallMsg').value.toUpperCase().trim() || 'CQ';
+        state.tocallPosSat = document.getElementById('setTocallPos').value.toUpperCase().trim() || 'APRS';
+    } else {
+        state.tocallMsgTer = document.getElementById('setTocallMsg').value.toUpperCase().trim() || 'APRS';
+        state.tocallPosTer = document.getElementById('setTocallPos').value.toUpperCase().trim() || 'APRS';
+    }
     state.mapShowHeardSat = document.getElementById('mapShowHeardSat').checked;
     state.mapShowHeardTer = document.getElementById('mapShowHeardTer').checked;
     state.mapShowQSO = document.getElementById('mapShowQSO').checked;
@@ -430,7 +458,9 @@ function persistSettings() {
             myAlt: state.myAlt, qsoLog: state.qsoLog,
             tncType: state.tncType, tncBaud: state.tncBaud,
             logLines: state.logLines, autoQSO: state.autoQSO, rawMonitor: state.rawMonitor,
-            rstDefault: state.rstDefault, tocall: state.tocall, msgIdCounter: state.msgIdCounter,
+            rstDefault: state.rstDefault, tocall: state.tocallMsgSat,
+            tocallMsgSat: state.tocallMsgSat, tocallPosSat: state.tocallPosSat,
+            tocallMsgTer: state.tocallMsgTer, tocallPosTer: state.tocallPosTer, msgIdCounter: state.msgIdCounter,
             lastTLEUpdate: state.lastTLEUpdate, macros: state.macros,
             satFreqOverrides: state.satFreqOverrides, elevationOffset: state.elevationOffset,
             userSatellites: state.userSatellites,
@@ -449,7 +479,8 @@ function updateDisplays() {
     document.getElementById('myGridDisplay').textContent = state.myGrid;
     document.getElementById('txFreqDisplay').textContent = state.txFreq.toFixed(3) + ' MHz';
     document.getElementById('pathDisplay').textContent = state.digipath;
-    document.getElementById('tocallDisplay').textContent = state.tocall || 'CQ';
+    document.getElementById('tocallDisplay').textContent = isSatMode() ? state.tocallMsgSat : state.tocallMsgTer;
+    if (typeof updateTocallFields === 'function') updateTocallFields();
     const sat = satelliteDB.find(s => s.id === state.selectedSat);
     if (sat) document.getElementById('satNameDisplay').textContent = sat.name.split(' ')[0];
     renderQSOs();

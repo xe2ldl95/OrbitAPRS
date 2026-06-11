@@ -102,7 +102,10 @@ function sendQuickAction(action) {
         persistSettings();
     }
     const sourceCall = state.myCall;
-    const destCall = state.tocall || 'CQ';
+    const isSat = isSatMode();
+    const destCall = info[0] === ':'
+        ? (isSat ? state.tocallMsgSat : state.tocallMsgTer)
+        : (isSat ? state.tocallPosSat : state.tocallPosTer);
     const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
     const packet = {
         infoField: info,
@@ -116,7 +119,7 @@ function sendQuickAction(action) {
         try {
             const ax25 = buildAX25Frame(packet);
             state.tnc.send(ax25);
-            if (macro.logQSO && target && target.length >= 3 && state.selectedSat) {
+            if (macro.logQSO && target && target.length >= 3 && isSat) {
                 const pts = target.split(' ');
                 const tc = pts[0], tg = pts[1] || '';
                 if (tc.length >= 3) {
@@ -550,7 +553,7 @@ function sendFreeTextPacket() {
     const info = formatAPRSMessage(call, raw, seq);
 
     const sourceCall = state.myCall;
-    const destCall = state.tocall || 'CQ';
+    const destCall = isSatMode() ? state.tocallMsgSat : state.tocallMsgTer;
     const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
     const packet = {
         infoField: info,
