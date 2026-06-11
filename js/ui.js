@@ -249,8 +249,6 @@ function onFreqOverrideValChange() {
     var sat = satelliteDB.find(function(s) { return s.id === satId; });
     if (sat) {
         state.txFreq = (state.satFreqOverrides && state.satFreqOverrides[satId]) || sat.freq;
-        var freqInput = document.getElementById('setFreq');
-        if (freqInput) freqInput.value = state.txFreq;
         updateDisplays();
     }
 }
@@ -265,8 +263,6 @@ function resetFreqOverride() {
     var sat = satelliteDB.find(function(s) { return s.id === satId; });
     if (sat) {
         state.txFreq = sat.freq;
-        var freqInput = document.getElementById('setFreq');
-        if (freqInput) freqInput.value = state.txFreq;
         updateDisplays();
     }
     onFreqOverrideSatChange();

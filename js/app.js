@@ -214,7 +214,6 @@ function loadSettings() {
 function populateSettingsFields() {
     document.getElementById('setCall').value = state.myCall;
     document.getElementById('setGrid').value = state.myGrid;
-    document.getElementById('setFreq').value = state.txFreq;
     document.getElementById('setPath').value = state.digipath;
     document.getElementById('setLat').value = state.myLat;
     document.getElementById('setLon').value = state.myLon;
@@ -254,7 +253,6 @@ function updateTocallFields() {
 function saveSettings() {
     state.myCall = document.getElementById('setCall').value.toUpperCase().trim() || 'N0CALL';
     state.myGrid = document.getElementById('setGrid').value.toUpperCase().trim() || 'FN42';
-    state.txFreq = parseFloat(document.getElementById('setFreq').value) || 145.825;
     state.digipath = document.getElementById('setPath').value || 'ARISS';
     state.myLat = parseFloat(document.getElementById('setLat').value) || 42.0;
     state.myLon = parseFloat(document.getElementById('setLon').value) || -71.0;
