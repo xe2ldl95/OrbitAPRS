@@ -47,6 +47,25 @@ function kissCommandEncode(command, payload) {
     return new Uint8Array(r);
 }
 
+function kissDecodeRaw(frame) {
+    if (frame.length < 4) return null;
+    if (frame[0] !== KISS_FEND || frame[frame.length - 1] !== KISS_FEND) return null;
+    const body = frame.slice(1, -1);
+    if (body.length < 1) return null;
+    const cmd = body[0];
+    const r = [];
+    for (let i = 1; i < body.length; i++) {
+        if (body[i] === KISS_FESC) {
+            i++;
+            if (i >= body.length) return null;
+            r.push(body[i] === KISS_TFEND ? KISS_FEND : KISS_FESC);
+        } else {
+            r.push(body[i]);
+        }
+    }
+    return { cmd, data: new Uint8Array(r) };
+}
+
 class TNC {
     constructor() {
         this.connected = false;
@@ -60,6 +79,7 @@ class TNC {
         this._prevFend = -1;
         this.onPacket = null;
         this.onStatus = null;
+        this.onHardwareResponse = null;
         this._disconnecting = false;
     }
 
@@ -469,15 +489,13 @@ class TNC {
     }
 
     applyKISSParams(params) {
-        const txDelayUnits = Math.max(0, Math.min(65535, Math.round((params.txDelay || 300) / 10)));
-        const txDelayHi = (txDelayUnits >> 8) & 0xFF;
-        const txDelayLo = txDelayUnits & 0xFF;
-        this.sendCommand(0x06, new Uint8Array([txDelayHi, txDelayLo]));
-        this.sendCommand(0x08, new Uint8Array([Math.max(0, Math.min(255, params.persistence || 63))]));
-        const slotUnits = Math.max(0, Math.min(255, Math.round((params.slotTime || 100) / 10)));
-        this.sendCommand(0x0A, new Uint8Array([slotUnits]));
-        const tailUnits = Math.max(0, Math.min(255, Math.round((params.txTail || 20) / 10)));
-        this.sendCommand(0x0C, new Uint8Array([tailUnits]));
+        var txDelayUnits = Math.max(0, Math.min(255, Math.round((params.txDelay || 300) / 10)));
+        this.sendCommand(0x01, new Uint8Array([txDelayUnits]));
+        this.sendCommand(0x02, new Uint8Array([Math.max(0, Math.min(255, params.persistence || 63))]));
+        var slotUnits = Math.max(0, Math.min(255, Math.round((params.slotTime || 100) / 10)));
+        this.sendCommand(0x03, new Uint8Array([slotUnits]));
+        var tailUnits = Math.max(0, Math.min(255, Math.round((params.txTail || 20) / 10)));
+        this.sendCommand(0x04, new Uint8Array([tailUnits]));
     }
 
     // ── KISS frame reassembly ──
@@ -506,21 +524,29 @@ class TNC {
     }
 
     _processFrame(kissFrame) {
-        const ax25 = kissDecode(kissFrame);
-        if (!ax25) {
+        const decoded = kissDecodeRaw(kissFrame);
+        if (!decoded) {
             if (state.rawMonitor) addTerminalLine('system', 'KISS decode FAILED — frame len=' + kissFrame.length + ' start=' + kissFrame[0].toString(16) + ' end=' + kissFrame[kissFrame.length-1].toString(16));
             return;
         }
-        if (ax25.length < 14) {
-            if (state.rawMonitor) addTerminalLine('system', 'KISS frame too short: ' + ax25.length + ' bytes');
-            return;
+        const { cmd, data } = decoded;
+        if (cmd === 0x00) {
+            if (data.length < 14) {
+                if (state.rawMonitor) addTerminalLine('system', 'KISS frame too short: ' + data.length + ' bytes');
+                return;
+            }
+            const parsed = parseAX25Frame(data);
+            if (!parsed) {
+                if (state.rawMonitor) addTerminalLine('system', 'parseAX25Frame FAILED — ax25 len=' + data.length);
+                return;
+            }
+            if (state.rawMonitor) addTerminalLine('system', 'DECODED: ' + parsed.source + ' > ' + parsed.dest + ' infoLen=' + parsed.info.length);
+            if (this.onPacket) this.onPacket(parsed);
+        } else if (cmd === 0x06 && this.onHardwareResponse) {
+            var subcmd = data.length > 0 ? data[0] : 0;
+            this.onHardwareResponse({ subcmd: subcmd, data: data.slice(1) });
+        } else {
+            if (state.rawMonitor) addTerminalLine('system', 'KISS cmd=0x' + cmd.toString(16) + ' len=' + data.length);
         }
-        const parsed = parseAX25Frame(ax25);
-        if (!parsed) {
-            if (state.rawMonitor) addTerminalLine('system', 'parseAX25Frame FAILED — ax25 len=' + ax25.length + ' hex=' + Array.from(ax25).map(b => b.toString(16).padStart(2, '0')).join(' '));
-            return;
-        }
-        if (state.rawMonitor) addTerminalLine('system', 'DECODED: ' + parsed.source + ' > ' + parsed.dest + ' infoLen=' + parsed.info.length);
-        if (this.onPacket) this.onPacket(parsed);
     }
 }

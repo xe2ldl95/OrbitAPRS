@@ -328,6 +328,33 @@ function tncConnect() {
             document.getElementById('tncStatusDot').className = 'status-dot warning';
         }
     };
+    state.tnc.onHardwareResponse = (resp) => {
+        if (resp.subcmd === 0x05 || resp.subcmd === 0x04) {
+            var level = resp.data.length >= 2
+                ? (resp.data[0] << 8) | resp.data[1]
+                : resp.data[0] || 0;
+            var maxVal = resp.data.length >= 2 ? 65535 : 255;
+            var pct = Math.min(100, Math.max(0, (level / maxVal) * 100));
+            var dbVal = (level || 1) / maxVal;
+            var db = 20 * Math.log10(dbVal);
+            document.getElementById('inputLevelBar').value = pct;
+            var dbEl = document.getElementById('inputLevelDb');
+            dbEl.textContent = db.toFixed(1) + ' dBFS';
+            dbEl.style.color = db > -10 ? '#e74c3c' : db > -20 ? '#f0a030' : '#2ecc71';
+        } else if (resp.subcmd === 0x21) {
+            var val = (resp.data[0] || 0) * 10;
+            document.getElementById('setTxDelay').value = val;
+        } else if (resp.subcmd === 0x22) {
+            var val = resp.data[0] || 0;
+            document.getElementById('setPersistence').value = val;
+        } else if (resp.subcmd === 0x23) {
+            var val = (resp.data[0] || 0) * 10;
+            document.getElementById('setSlotTime').value = val;
+        } else if (resp.subcmd === 0x24) {
+            var val = (resp.data[0] || 0) * 10;
+            document.getElementById('setTxTail').value = val;
+        }
+    };
     state.tnc.connect(type, port, baud);
 }
 
@@ -572,21 +599,21 @@ function sendFreeTextPacket() {
     document.getElementById('freeTextPacket').value = '';
 }
 
-// ── Tone calibration via KISS ──
+// ── Tone calibration via KISS SetHardware ──
 function toggleCalTone() {
     if (!state.tnc || !state.tnc.connected) {
         showToast('TNC not connected', true);
         document.getElementById('setToneEnable').checked = false;
         return;
     }
-    const enabled = document.getElementById('setToneEnable').checked;
+    var enabled = document.getElementById('setToneEnable').checked;
     if (enabled) {
-        const freq = parseInt(document.getElementById('setToneFreq').value) || 1200;
-        const freqByte = freq >= 2000 ? 0x02 : 0x01;
-        state.tnc.sendCommand(0x0F, new Uint8Array([0x06, freqByte]));
+        var freq = parseInt(document.getElementById('setToneFreq').value) || 1200;
+        var subcmd = freq >= 2000 ? 0x08 : 0x07;
+        state.tnc.sendCommand(0x06, new Uint8Array([subcmd]));
         showToast('Cal tone: ' + freq + ' Hz');
     } else {
-        state.tnc.sendCommand(0x0F, new Uint8Array([0x06, 0x00]));
+        state.tnc.sendCommand(0x06, new Uint8Array([0x0A]));
         showToast('Cal tone stopped');
     }
 }
@@ -594,70 +621,32 @@ function toggleCalTone() {
 function updateCalToneFreq() {
     if (!document.getElementById('setToneEnable').checked) return;
     if (!state.tnc || !state.tnc.connected) return;
-    const freq = parseInt(document.getElementById('setToneFreq').value) || 1200;
-    const freqByte = freq >= 2000 ? 0x02 : 0x01;
-    state.tnc.sendCommand(0x0F, new Uint8Array([0x06, 0x00]));
-    state.tnc.sendCommand(0x0F, new Uint8Array([0x06, freqByte]));
+    var freq = parseInt(document.getElementById('setToneFreq').value) || 1200;
+    var subcmd = freq >= 2000 ? 0x08 : 0x07;
+    state.tnc.sendCommand(0x06, new Uint8Array([0x0A]));
+    state.tnc.sendCommand(0x06, new Uint8Array([subcmd]));
 }
 
-// ── Audio level monitor ──
-var _micStream = null;
-var _micCtx = null;
-var _micAnalyser = null;
-var _micAnimId = null;
+// ── Audio level monitor (KISS streaming) ──
+var _streamingLevel = false;
 
 function toggleAudioMonitor() {
-    const btn = document.getElementById('btnAudioMonitor');
-    if (_micStream) {
-        if (_micAnimId) cancelAnimationFrame(_micAnimId);
-        _micAnimId = null;
-        _micStream.getTracks().forEach(function(t) { t.stop(); });
-        _micStream = null;
-        if (_micCtx) _micCtx.close();
-        _micCtx = null;
-        _micAnalyser = null;
+    if (!state.tnc || !state.tnc.connected) {
+        showToast('TNC not connected', true);
+        return;
+    }
+    var btn = document.getElementById('btnAudioMonitor');
+    if (_streamingLevel) {
+        state.tnc.sendCommand(0x06, new Uint8Array([0x04]));
+        _streamingLevel = false;
         btn.textContent = 'Iniciar monitoreo';
         document.getElementById('inputLevelBar').value = 0;
         document.getElementById('inputLevelDb').textContent = '-- dB';
-        return;
-    }
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showToast('Mic access not available', true);
-        return;
-    }
-    btn.textContent = 'Solicitando micrófono...';
-    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
-        _micStream = stream;
-        _micCtx = new (window.AudioContext || window.webkitAudioContext)();
-        var src = _micCtx.createMediaStreamSource(stream);
-        _micAnalyser = _micCtx.createAnalyser();
-        _micAnalyser.fftSize = 256;
-        src.connect(_micAnalyser);
+    } else {
+        state.tnc.sendCommand(0x06, new Uint8Array([0x05]));
+        _streamingLevel = true;
         btn.textContent = 'Detener monitoreo';
-        updateInputLevel();
-    }).catch(function(err) {
-        showToast('Mic error: ' + err.message, true);
-        btn.textContent = 'Iniciar monitoreo';
-    });
-}
-
-function updateInputLevel() {
-    if (!_micAnalyser) return;
-    var data = new Uint8Array(_micAnalyser.frequencyBinCount);
-    _micAnalyser.getByteTimeDomainData(data);
-    var sum = 0;
-    for (var i = 0; i < data.length; i++) {
-        var val = (data[i] - 128) / 128;
-        sum += val * val;
     }
-    var rms = Math.sqrt(sum / data.length);
-    var db = 20 * Math.log10(rms || 0.001);
-    var pct = Math.min(100, Math.max(0, rms * 100));
-    document.getElementById('inputLevelBar').value = pct;
-    var dbEl = document.getElementById('inputLevelDb');
-    dbEl.textContent = db.toFixed(1) + ' dB';
-    dbEl.style.color = db > -10 ? '#e74c3c' : db > -20 ? '#f0a030' : '#2ecc71';
-    _micAnimId = requestAnimationFrame(updateInputLevel);
 }
 
 // ── KISS apply from UI ──
@@ -678,4 +667,17 @@ function applyKISSFromUI() {
     } catch (e) {
         showToast('Error: ' + e.message, true);
     }
+}
+
+// ── KISS read from TNC ──
+function readKISSFromTNC() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast('TNC not connected', true);
+        return;
+    }
+    state.tnc.sendCommand(0x06, new Uint8Array([0x21]));
+    state.tnc.sendCommand(0x06, new Uint8Array([0x22]));
+    state.tnc.sendCommand(0x06, new Uint8Array([0x23]));
+    state.tnc.sendCommand(0x06, new Uint8Array([0x24]));
+    showToast('Reading KISS params from TNC...');
 }
