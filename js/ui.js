@@ -324,6 +324,10 @@ function tncConnect() {
         document.getElementById('tncStatusText').textContent = 'TNC: ' + msg;
         if (!isError) {
             document.getElementById('tncStatusDot').className = 'status-dot active';
+            setTimeout(function() {
+                readTXGain();
+                state.tnc.sendCommand(0x06, new Uint8Array([0x0D]));
+            }, 1000);
         } else {
             document.getElementById('tncStatusDot').className = 'status-dot warning';
         }
@@ -341,6 +345,20 @@ function tncConnect() {
             var dbEl = document.getElementById('inputLevelDb');
             dbEl.textContent = db.toFixed(1) + ' dBFS';
             dbEl.style.color = db > -10 ? '#e74c3c' : db > -20 ? '#f0a030' : '#2ecc71';
+            var statusEl = document.getElementById('inputLevelStatus');
+            if (db > -3) {
+                statusEl.textContent = '⚠ Alto';
+                statusEl.style.color = '#e74c3c';
+            } else if (db > -6) {
+                statusEl.textContent = '✓ Óptimo';
+                statusEl.style.color = '#2ecc71';
+            } else if (db > -15) {
+                statusEl.textContent = '∼ Aceptable';
+                statusEl.style.color = '#f0a030';
+            } else {
+                statusEl.textContent = '▼ Bajo';
+                statusEl.style.color = '#e74c3c';
+            }
         } else if (resp.subcmd === 0x21) {
             var val = (resp.data[0] || 0) * 10;
             document.getElementById('setTxDelay').value = val;
@@ -353,6 +371,14 @@ function tncConnect() {
         } else if (resp.subcmd === 0x24) {
             var val = (resp.data[0] || 0) * 10;
             document.getElementById('setTxTail').value = val;
+        } else if (resp.subcmd === 0x0C) {
+            var gain = resp.data.length >= 2 ? (resp.data[0] | (resp.data[1] << 8)) : (resp.data[0] || 0);
+            var pct = Math.round(gain / 255 * 100);
+            document.getElementById('setTXGain').value = pct;
+            document.getElementById('txGainVal').textContent = pct + '%';
+        } else if (resp.subcmd === 0x0D) {
+            var gain = resp.data.length >= 2 ? (resp.data[0] | (resp.data[1] << 8)) : (resp.data[0] || 0);
+            document.getElementById('inputGainDisplay').textContent = gain;
         }
     };
     state.tnc.connect(type, port, baud);
@@ -680,4 +706,49 @@ function readKISSFromTNC() {
     state.tnc.sendCommand(0x06, new Uint8Array([0x23]));
     state.tnc.sendCommand(0x06, new Uint8Array([0x24]));
     showToast('Reading KISS params from TNC...');
+}
+
+// ── Digipath custom ──
+function onDigipathChange() {
+    var sel = document.getElementById('setPath');
+    var cust = document.getElementById('setPathCustom');
+    if (sel.value === '__other__') {
+        cust.style.display = '';
+        cust.focus();
+    } else {
+        cust.style.display = 'none';
+    }
+}
+
+function onDigipathCustomInput() {
+    var cust = document.getElementById('setPathCustom');
+    cust.value = cust.value.toUpperCase().replace(/[^A-Z0-9\-,*]/g, '');
+}
+
+// ── TX Gain ──
+function updateTXGain() {
+    var pct = parseInt(document.getElementById('setTXGain').value) || 50;
+    document.getElementById('txGainVal').textContent = pct + '%';
+    if (state.tnc && state.tnc.connected) {
+        var gain = Math.round(pct / 100 * 255);
+        state.tnc.sendCommand(0x06, new Uint8Array([0x01, gain & 0xFF, (gain >> 8) & 0xFF]));
+    }
+}
+
+function readTXGain() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast('TNC not connected', true);
+        return;
+    }
+    state.tnc.sendCommand(0x06, new Uint8Array([0x0C]));
+}
+
+// ── RX input auto-adjust ──
+function adjustInputLevels() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast('TNC not connected', true);
+        return;
+    }
+    state.tnc.sendCommand(0x06, new Uint8Array([0x2B]));
+    showToast('Auto-adjusting RX levels...');
 }
