@@ -227,16 +227,13 @@ function loadSettings() {
 function populateSettingsFields() {
     document.getElementById('setCall').value = state.myCall;
     document.getElementById('setGrid').value = state.myGrid;
-    var pathSelect = document.getElementById('setPath');
-    var pathCustom = document.getElementById('setPathCustom');
     var standardPaths = ['ARISS', 'WIDE1-1,WIDE2-1', 'WIDE1-1', 'WIDE2-2', 'DIRECT'];
     if (standardPaths.indexOf(state.digipath) >= 0) {
-        pathSelect.value = state.digipath;
-        pathCustom.style.display = 'none';
+        document.getElementById('setPath').value = state.digipath;
+        document.getElementById('setPathCustom').value = '';
     } else {
-        pathSelect.value = '__other__';
-        pathCustom.style.display = '';
-        pathCustom.value = state.digipath;
+        document.getElementById('setPath').value = '__other__';
+        document.getElementById('setPathCustom').value = state.digipath;
     }
     document.getElementById('setLat').value = state.myLat;
     document.getElementById('setLon').value = state.myLon;

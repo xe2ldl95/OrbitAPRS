@@ -712,17 +712,20 @@ function readKISSFromTNC() {
 function onDigipathChange() {
     var sel = document.getElementById('setPath');
     var cust = document.getElementById('setPathCustom');
-    if (sel.value === '__other__') {
-        cust.style.display = '';
-        cust.focus();
+    if (sel.value !== '__other__') {
+        cust.value = sel.value;
     } else {
-        cust.style.display = 'none';
+        cust.focus();
     }
 }
 
 function onDigipathCustomInput() {
     var cust = document.getElementById('setPathCustom');
+    var sel = document.getElementById('setPath');
     cust.value = cust.value.toUpperCase().replace(/[^A-Z0-9\-,*]/g, '');
+    if (cust.value) {
+        sel.value = '__other__';
+    }
 }
 
 // ── TX Gain ──
