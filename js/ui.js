@@ -577,14 +577,21 @@ document.addEventListener('keydown', function(e) {
 
 function updateDigipathOptions(isTerrestrial) {
     const sel = document.getElementById('setPath');
+    var html;
     if (isTerrestrial) {
-        sel.innerHTML = '<option>WIDE1-1</option><option>WIDE1-1,WIDE2-1</option><option>WIDE2-2</option><option>WIDE2-1</option><option>CQ</option><option>DIRECT</option>';
+        html = '<option>WIDE1-1</option><option>WIDE1-1,WIDE2-1</option><option>WIDE2-2</option><option>WIDE2-1</option><option>CQ</option><option>DIRECT</option>';
     } else {
-        sel.innerHTML = '<option>ARISS</option><option>WIDE1-1,WIDE2-1</option><option>WIDE1-1</option><option>WIDE2-2</option><option>DIRECT</option>';
+        html = '<option>ARISS</option><option>WIDE1-1,WIDE2-1</option><option>WIDE1-1</option><option>WIDE2-2</option><option>DIRECT</option>';
     }
-    state.digipath = sel.value;
-    document.getElementById('pathDisplay').textContent = state.digipath;
-    persistSettings();
+    if (state.customPaths && state.customPaths.length) {
+        for (var i = 0; i < state.customPaths.length; i++) {
+            var p = state.customPaths[i];
+            if (p && ALL_STANDARD_PATHS.indexOf(p) < 0) {
+                html += '<option>' + escapeHTML(p) + '</option>';
+            }
+        }
+    }
+    sel.innerHTML = html;
 }
 
 function sendFreeTextPacket() {
@@ -712,16 +719,58 @@ function readKISSFromTNC() {
 function onDigipathChange() {
     var sel = document.getElementById('setPath');
     var cust = document.getElementById('setPathCustom');
-    if (sel.value !== '__other__') {
-        cust.value = sel.value;
-    } else {
-        cust.focus();
-    }
+    cust.value = sel.value;
+    updateAddDelBtn();
 }
 
 function onDigipathCustomInput() {
     var cust = document.getElementById('setPathCustom');
     cust.value = cust.value.toUpperCase().replace(/[^A-Z0-9\-,*]/g, '');
+    updateAddDelBtn();
+}
+
+function updateAddDelBtn() {
+    var btn = document.getElementById('btnAddDelPath');
+    var cust = document.getElementById('setPathCustom').value.trim().toUpperCase();
+    if (!cust) {
+        btn.disabled = true;
+        btn.textContent = 'Add';
+        return;
+    }
+    if (ALL_STANDARD_PATHS.indexOf(cust) >= 0) {
+        btn.disabled = true;
+        btn.textContent = 'Add';
+        return;
+    }
+    if (state.customPaths && state.customPaths.indexOf(cust) >= 0) {
+        btn.textContent = 'Del';
+        btn.disabled = false;
+    } else {
+        btn.textContent = 'Add';
+        btn.disabled = false;
+    }
+}
+
+function onAddDelPath() {
+    var cust = document.getElementById('setPathCustom').value.trim().toUpperCase();
+    if (!cust || ALL_STANDARD_PATHS.indexOf(cust) >= 0) return;
+    if (!state.customPaths) state.customPaths = [];
+    var idx = state.customPaths.indexOf(cust);
+    if (idx >= 0) {
+        state.customPaths.splice(idx, 1);
+    } else {
+        state.customPaths.push(cust);
+    }
+    var oldVal = document.getElementById('setPath').value;
+    updateDigipathOptions(!isSatMode());
+    var sel = document.getElementById('setPath');
+    if (Array.prototype.slice.call(sel.options).some(function(o) { return o.value === oldVal; })) {
+        sel.value = oldVal;
+    }
+    state.digipath = sel.value;
+    document.getElementById('pathDisplay').textContent = state.digipath;
+    persistSettings();
+    updateAddDelBtn();
 }
 
 // ── TX Gain ──

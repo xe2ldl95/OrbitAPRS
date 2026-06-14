@@ -395,5 +395,7 @@ function selectSatellite(satId) {
         document.getElementById('satStatusDot').className = 'status-dot active';
         refreshSatPasses();
         updateDigipathOptions(sat.type === 'terrestrial');
+        document.getElementById('pathDisplay').textContent = state.digipath;
+        persistSettings();
     }
 }

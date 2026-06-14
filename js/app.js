@@ -16,6 +16,7 @@ var compassHeading = null;
 var compassRaw = { alpha: null, beta: null, gamma: null, webkit: null };
 var _compassDeviceListenerAdded = false;
 var _sensorActive = false;
+var ALL_STANDARD_PATHS = ['ARISS', 'WIDE1-1,WIDE2-1', 'WIDE1-1', 'WIDE2-2', 'DIRECT', 'WIDE2-1', 'CQ'];
 
 const state = {
     myCall: 'N0CALL',
@@ -65,6 +66,7 @@ const state = {
     tncApplyOnConnect: false,
     toneFreq: 1200,
     txGain: 50,
+    customPaths: [],
 };
 
 function computeHeading(alpha, beta, gamma) {
@@ -218,6 +220,7 @@ function loadSettings() {
                 state.tncTxTail = s.tncTxTail !== undefined ? s.tncTxTail : 20;
                 state.tncApplyOnConnect = s.tncApplyOnConnect !== undefined ? s.tncApplyOnConnect : false;
                 state.txGain = s.txGain !== undefined ? s.txGain : 50;
+                state.customPaths = Array.isArray(s.customPaths) ? s.customPaths : [];
             } catch (e) {}
         }
     } catch (e) {}
@@ -227,14 +230,12 @@ function loadSettings() {
 function populateSettingsFields() {
     document.getElementById('setCall').value = state.myCall;
     document.getElementById('setGrid').value = state.myGrid;
-    var standardPaths = ['ARISS', 'WIDE1-1,WIDE2-1', 'WIDE1-1', 'WIDE2-2', 'DIRECT'];
-    if (standardPaths.indexOf(state.digipath) >= 0) {
-        document.getElementById('setPath').value = state.digipath;
-        document.getElementById('setPathCustom').value = '';
-    } else {
-        document.getElementById('setPath').value = 'ARISS';
-        document.getElementById('setPathCustom').value = state.digipath;
-    }
+    var savedDigipath = state.digipath;
+    if (typeof updateDigipathOptions === 'function') updateDigipathOptions(!isSatMode());
+    state.digipath = savedDigipath;
+    document.getElementById('setPath').value = savedDigipath;
+    document.getElementById('setPathCustom').value = savedDigipath;
+    if (typeof updateAddDelBtn === 'function') updateAddDelBtn();
     document.getElementById('setLat').value = state.myLat;
     document.getElementById('setLon').value = state.myLon;
     document.getElementById('setElevationOffset').value = state.elevationOffset;
@@ -281,8 +282,7 @@ function updateTocallFields() {
 function saveSettings() {
     state.myCall = document.getElementById('setCall').value.toUpperCase().trim() || 'N0CALL';
     state.myGrid = document.getElementById('setGrid').value.toUpperCase().trim() || 'FN42';
-    var customPath = document.getElementById('setPathCustom').value.trim().toUpperCase();
-    state.digipath = customPath || document.getElementById('setPath').value || 'ARISS';
+    state.digipath = document.getElementById('setPath').value || 'ARISS';
     state.myLat = parseFloat(document.getElementById('setLat').value) || 42.0;
     state.myLon = parseFloat(document.getElementById('setLon').value) || -71.0;
     state.myGrid = latLonToGrid(state.myLat, state.myLon, 4);
@@ -508,6 +508,7 @@ function persistSettings() {
             tncSlotTime: state.tncSlotTime, tncTxTail: state.tncTxTail,
             tncApplyOnConnect: state.tncApplyOnConnect,
             toneFreq: state.toneFreq, txGain: state.txGain,
+            customPaths: state.customPaths,
         }));
     } catch (e) {}
 }
