@@ -721,11 +721,7 @@ function onDigipathChange() {
 
 function onDigipathCustomInput() {
     var cust = document.getElementById('setPathCustom');
-    var sel = document.getElementById('setPath');
     cust.value = cust.value.toUpperCase().replace(/[^A-Z0-9\-,*]/g, '');
-    if (cust.value) {
-        sel.value = '__other__';
-    }
 }
 
 // ── TX Gain ──

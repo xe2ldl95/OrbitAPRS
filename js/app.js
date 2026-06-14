@@ -232,7 +232,7 @@ function populateSettingsFields() {
         document.getElementById('setPath').value = state.digipath;
         document.getElementById('setPathCustom').value = '';
     } else {
-        document.getElementById('setPath').value = '__other__';
+        document.getElementById('setPath').value = 'ARISS';
         document.getElementById('setPathCustom').value = state.digipath;
     }
     document.getElementById('setLat').value = state.myLat;
@@ -281,10 +281,8 @@ function updateTocallFields() {
 function saveSettings() {
     state.myCall = document.getElementById('setCall').value.toUpperCase().trim() || 'N0CALL';
     state.myGrid = document.getElementById('setGrid').value.toUpperCase().trim() || 'FN42';
-    var pathSelect = document.getElementById('setPath').value;
-    state.digipath = pathSelect === '__other__'
-        ? (document.getElementById('setPathCustom').value.trim().toUpperCase() || 'ARISS')
-        : (pathSelect || 'ARISS');
+    var customPath = document.getElementById('setPathCustom').value.trim().toUpperCase();
+    state.digipath = customPath || document.getElementById('setPath').value || 'ARISS';
     state.myLat = parseFloat(document.getElementById('setLat').value) || 42.0;
     state.myLon = parseFloat(document.getElementById('setLon').value) || -71.0;
     state.myGrid = latLonToGrid(state.myLat, state.myLon, 4);
