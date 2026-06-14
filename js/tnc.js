@@ -35,6 +35,18 @@ function kissDecode(frame) {
     return new Uint8Array(r);
 }
 
+function kissCommandEncode(command, payload) {
+    const r = [KISS_FEND, command];
+    for (let i = 0; i < payload.length; i++) {
+        const b = payload[i];
+        if (b === KISS_FEND) { r.push(KISS_FESC, KISS_TFEND); }
+        else if (b === KISS_FESC) { r.push(KISS_FESC, KISS_TFESC); }
+        else { r.push(b); }
+    }
+    r.push(KISS_FEND);
+    return new Uint8Array(r);
+}
+
 class TNC {
     constructor() {
         this.connected = false;
@@ -71,6 +83,21 @@ class TNC {
             if (this.onStatus) this.onStatus('Connected (' + type + btLabel + ')');
             addTerminalLine('system', 'TNC connected (' + type + btLabel + ')');
             if (typeof updateDeviceInfo === 'function') updateDeviceInfo();
+            if (typeof state !== 'undefined' && state.tncApplyOnConnect) {
+                setTimeout(() => {
+                    try {
+                        this.applyKISSParams({
+                            txDelay: state.tncTxDelay,
+                            persistence: state.tncPersistence,
+                            slotTime: state.tncSlotTime,
+                            txTail: state.tncTxTail,
+                        });
+                        addTerminalLine('system', 'KISS parameters applied');
+                    } catch (e) {
+                        addTerminalLine('system', 'KISS apply error: ' + e.message);
+                    }
+                }, 500);
+            }
         } catch (err) {
             const msg = err.message || String(err);
             if (this.onStatus) this.onStatus('Error: ' + msg, true);
@@ -434,6 +461,23 @@ class TNC {
     send(ax25Bytes) {
         if (!this.connected || !this._writer) throw new Error('TNC not connected');
         this._writer.write(kissEncode(ax25Bytes));
+    }
+
+    sendCommand(command, payload) {
+        if (!this.connected || !this._writer) throw new Error('TNC not connected');
+        this._writer.write(kissCommandEncode(command, payload));
+    }
+
+    applyKISSParams(params) {
+        const txDelayUnits = Math.max(0, Math.min(65535, Math.round((params.txDelay || 300) / 10)));
+        const txDelayHi = (txDelayUnits >> 8) & 0xFF;
+        const txDelayLo = txDelayUnits & 0xFF;
+        this.sendCommand(0x06, new Uint8Array([txDelayHi, txDelayLo]));
+        this.sendCommand(0x08, new Uint8Array([Math.max(0, Math.min(255, params.persistence || 63))]));
+        const slotUnits = Math.max(0, Math.min(255, Math.round((params.slotTime || 100) / 10)));
+        this.sendCommand(0x0A, new Uint8Array([slotUnits]));
+        const tailUnits = Math.max(0, Math.min(255, Math.round((params.txTail || 20) / 10)));
+        this.sendCommand(0x0C, new Uint8Array([tailUnits]));
     }
 
     // ── KISS frame reassembly ──

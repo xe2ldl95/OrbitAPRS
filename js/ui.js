@@ -571,3 +571,111 @@ function sendFreeTextPacket() {
     }
     document.getElementById('freeTextPacket').value = '';
 }
+
+// ── Tone calibration via KISS ──
+function toggleCalTone() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast('TNC not connected', true);
+        document.getElementById('setToneEnable').checked = false;
+        return;
+    }
+    const enabled = document.getElementById('setToneEnable').checked;
+    if (enabled) {
+        const freq = parseInt(document.getElementById('setToneFreq').value) || 1200;
+        const freqByte = freq >= 2000 ? 0x02 : 0x01;
+        state.tnc.sendCommand(0x0F, new Uint8Array([0x06, freqByte]));
+        showToast('Cal tone: ' + freq + ' Hz');
+    } else {
+        state.tnc.sendCommand(0x0F, new Uint8Array([0x06, 0x00]));
+        showToast('Cal tone stopped');
+    }
+}
+
+function updateCalToneFreq() {
+    if (!document.getElementById('setToneEnable').checked) return;
+    if (!state.tnc || !state.tnc.connected) return;
+    const freq = parseInt(document.getElementById('setToneFreq').value) || 1200;
+    const freqByte = freq >= 2000 ? 0x02 : 0x01;
+    state.tnc.sendCommand(0x0F, new Uint8Array([0x06, 0x00]));
+    state.tnc.sendCommand(0x0F, new Uint8Array([0x06, freqByte]));
+}
+
+// ── Audio level monitor ──
+var _micStream = null;
+var _micCtx = null;
+var _micAnalyser = null;
+var _micAnimId = null;
+
+function toggleAudioMonitor() {
+    const btn = document.getElementById('btnAudioMonitor');
+    if (_micStream) {
+        if (_micAnimId) cancelAnimationFrame(_micAnimId);
+        _micAnimId = null;
+        _micStream.getTracks().forEach(function(t) { t.stop(); });
+        _micStream = null;
+        if (_micCtx) _micCtx.close();
+        _micCtx = null;
+        _micAnalyser = null;
+        btn.textContent = 'Iniciar monitoreo';
+        document.getElementById('inputLevelBar').value = 0;
+        document.getElementById('inputLevelDb').textContent = '-- dB';
+        return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('Mic access not available', true);
+        return;
+    }
+    btn.textContent = 'Solicitando micrófono...';
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+        _micStream = stream;
+        _micCtx = new (window.AudioContext || window.webkitAudioContext)();
+        var src = _micCtx.createMediaStreamSource(stream);
+        _micAnalyser = _micCtx.createAnalyser();
+        _micAnalyser.fftSize = 256;
+        src.connect(_micAnalyser);
+        btn.textContent = 'Detener monitoreo';
+        updateInputLevel();
+    }).catch(function(err) {
+        showToast('Mic error: ' + err.message, true);
+        btn.textContent = 'Iniciar monitoreo';
+    });
+}
+
+function updateInputLevel() {
+    if (!_micAnalyser) return;
+    var data = new Uint8Array(_micAnalyser.frequencyBinCount);
+    _micAnalyser.getByteTimeDomainData(data);
+    var sum = 0;
+    for (var i = 0; i < data.length; i++) {
+        var val = (data[i] - 128) / 128;
+        sum += val * val;
+    }
+    var rms = Math.sqrt(sum / data.length);
+    var db = 20 * Math.log10(rms || 0.001);
+    var pct = Math.min(100, Math.max(0, rms * 100));
+    document.getElementById('inputLevelBar').value = pct;
+    var dbEl = document.getElementById('inputLevelDb');
+    dbEl.textContent = db.toFixed(1) + ' dB';
+    dbEl.style.color = db > -10 ? '#e74c3c' : db > -20 ? '#f0a030' : '#2ecc71';
+    _micAnimId = requestAnimationFrame(updateInputLevel);
+}
+
+// ── KISS apply from UI ──
+function applyKISSFromUI() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast('TNC not connected', true);
+        return;
+    }
+    var params = {
+        txDelay: parseInt(document.getElementById('setTxDelay').value) || 300,
+        persistence: parseInt(document.getElementById('setPersistence').value) || 63,
+        slotTime: parseInt(document.getElementById('setSlotTime').value) || 100,
+        txTail: parseInt(document.getElementById('setTxTail').value) || 20,
+    };
+    try {
+        state.tnc.applyKISSParams(params);
+        showToast('KISS params applied');
+    } catch (e) {
+        showToast('Error: ' + e.message, true);
+    }
+}

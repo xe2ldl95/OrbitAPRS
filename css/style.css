@@ -241,6 +241,30 @@ body {
 .toast.show { opacity: 1; transform: translateY(0); }
 .toast.error { background: #2a1a1a; border-color: #e74c3c; color: #e74c3c; }
 
+/* ── Level meter progress bar ── */
+#inputLevelBar {
+    appearance: none;
+    -webkit-appearance: none;
+    border: none;
+    border-radius: 6px;
+    height: 12px;
+    background: #1a1f2a;
+    overflow: hidden;
+}
+#inputLevelBar::-webkit-progress-bar {
+    background: #1a1f2a;
+    border-radius: 6px;
+}
+#inputLevelBar::-webkit-progress-value {
+    background: linear-gradient(90deg, #2ecc71, #f0a030, #e74c3c);
+    border-radius: 6px;
+    transition: width 0.1s;
+}
+#inputLevelBar::-moz-progress-bar {
+    background: linear-gradient(90deg, #2ecc71, #f0a030, #e74c3c);
+    border-radius: 6px;
+}
+
 /* ── Map View ── */
 .terminal-panel { position: relative; }
 .panel-tabs { display: flex; gap: 0; align-items: center; }

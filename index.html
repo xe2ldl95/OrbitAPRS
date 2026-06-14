@@ -131,6 +131,7 @@
                 <button class="tab-btn" data-tab="calibration" onclick="switchSettingsTab('calibration')">Calibration</button>
                 <button class="tab-btn" data-tab="map" onclick="switchSettingsTab('map')">Map</button>
                 <button class="tab-btn" data-tab="terminal" onclick="switchSettingsTab('terminal')">Terminal</button>
+                <button class="tab-btn" data-tab="tnc" onclick="switchSettingsTab('tnc')">TNC</button>
                 <button class="tab-btn" data-tab="licenses" onclick="switchSettingsTab('licenses')">Licenses</button>
             </div>
 
@@ -258,6 +259,51 @@
                         <span style="flex:1;">Own repeat messages color</span>
                         <input type="color" id="termColorOwn" value="#3b9fd4" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
                     </label>
+                </div>
+            </div>
+
+            <div class="tab-content" id="tab-tnc" style="display:none;">
+                <div class="form-group" style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:12px;">
+                    <label style="font-weight:600;color:var(--text-bright);font-size:0.85em;">🔊 Output Calibration</label>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                        <input type="checkbox" id="setToneEnable" style="width:16px;height:16px;cursor:pointer;" onchange="toggleCalTone()">
+                        <label style="margin:0;font-size:0.8em;color:var(--accent);cursor:pointer;">Transmitir tono de calibración</label>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
+                        <label style="flex:0 0 50px;font-size:0.75em;color:#888;">Tono:</label>
+                        <select id="setToneFreq" style="flex:1;background:#1a1f2a;border:1px solid var(--border);color:var(--text-bright);padding:8px 12px;border-radius:var(--radius-sm);font-size:0.9em;outline:none;" onchange="updateCalToneFreq()">
+                            <option value="1200">1200 Hz (AFSK Mark)</option>
+                            <option value="2200">2200 Hz (AFSK Space)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group" style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:12px;">
+                    <label style="font-weight:600;color:var(--text-bright);font-size:0.85em;">🎤 Input Monitor</label>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
+                        <button class="btn btn-outline btn-sm" id="btnAudioMonitor" onclick="toggleAudioMonitor()">Iniciar monitoreo</button>
+                        <span id="inputLevelDb" style="font-size:0.8em;color:#888;font-family:var(--font-mono);">-- dB</span>
+                    </div>
+                    <div style="margin-top:6px;">
+                        <progress id="inputLevelBar" value="0" max="100" style="width:100%;height:12px;border-radius:6px;background:#1a1f2a;"></progress>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label style="font-weight:600;color:var(--text-bright);font-size:0.85em;">KISS Parameters</label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
+                        <div><label style="font-size:0.7em;color:#888;">TxDelay (ms)</label><input type="number" id="setTxDelay" value="300" min="0" max="5000" step="10"></div>
+                        <div><label style="font-size:0.7em;color:#888;">Persistence (0-255)</label><input type="number" id="setPersistence" value="63" min="0" max="255" step="1"></div>
+                        <div><label style="font-size:0.7em;color:#888;">SlotTime (ms)</label><input type="number" id="setSlotTime" value="100" min="0" max="2550" step="10"></div>
+                        <div><label style="font-size:0.7em;color:#888;">TxTail (ms)</label><input type="number" id="setTxTail" value="20" min="0" max="2550" step="10"></div>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
+                        <button class="btn btn-outline btn-sm" onclick="applyKISSFromUI()" id="btnApplyKISS">Aplicar parámetros</button>
+                        <label style="display:flex;align-items:center;gap:4px;font-size:0.75em;color:#888;cursor:pointer;margin:0;">
+                            <input type="checkbox" id="setApplyOnConnect" style="width:14px;height:14px;cursor:pointer;">
+                            Aplicar al conectar
+                        </label>
+                    </div>
                 </div>
             </div>
 

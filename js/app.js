@@ -58,6 +58,12 @@ const state = {
     termColorRx: '#00e676',
     termColorEcho: '#008844',
     termColorOwn: '#3b9fd4',
+    tncTxDelay: 300,
+    tncPersistence: 63,
+    tncSlotTime: 100,
+    tncTxTail: 20,
+    tncApplyOnConnect: false,
+    toneFreq: 1200,
 };
 
 function computeHeading(alpha, beta, gamma) {
@@ -205,6 +211,11 @@ function loadSettings() {
                 state.termColorRx = s.termColorRx || '#00e676';
                 state.termColorEcho = s.termColorEcho || '#008844';
                 state.termColorOwn = s.termColorOwn || '#3b9fd4';
+                state.tncTxDelay = s.tncTxDelay !== undefined ? s.tncTxDelay : 300;
+                state.tncPersistence = s.tncPersistence !== undefined ? s.tncPersistence : 63;
+                state.tncSlotTime = s.tncSlotTime !== undefined ? s.tncSlotTime : 100;
+                state.tncTxTail = s.tncTxTail !== undefined ? s.tncTxTail : 20;
+                state.tncApplyOnConnect = s.tncApplyOnConnect !== undefined ? s.tncApplyOnConnect : false;
             } catch (e) {}
         }
     } catch (e) {}
@@ -238,6 +249,12 @@ function populateSettingsFields() {
     document.getElementById('termColorRx').value = state.termColorRx;
     document.getElementById('termColorEcho').value = state.termColorEcho;
     document.getElementById('termColorOwn').value = state.termColorOwn;
+    document.getElementById('setTxDelay').value = state.tncTxDelay;
+    document.getElementById('setPersistence').value = state.tncPersistence;
+    document.getElementById('setSlotTime').value = state.tncSlotTime;
+    document.getElementById('setTxTail').value = state.tncTxTail;
+    document.getElementById('setApplyOnConnect').checked = state.tncApplyOnConnect;
+    document.getElementById('setToneFreq').value = String(state.toneFreq);
     updateTocallFields();
 }
 
@@ -285,6 +302,12 @@ function saveSettings() {
     state.termColorRx = document.getElementById('termColorRx').value;
     state.termColorEcho = document.getElementById('termColorEcho').value;
     state.termColorOwn = document.getElementById('termColorOwn').value;
+    state.tncTxDelay = parseInt(document.getElementById('setTxDelay').value) || 300;
+    state.tncPersistence = parseInt(document.getElementById('setPersistence').value) || 63;
+    state.tncSlotTime = parseInt(document.getElementById('setSlotTime').value) || 100;
+    state.tncTxTail = parseInt(document.getElementById('setTxTail').value) || 20;
+    state.tncApplyOnConnect = document.getElementById('setApplyOnConnect').checked;
+    state.toneFreq = parseInt(document.getElementById('setToneFreq').value) || 1200;
     persistSettings();
     updateDisplays();
     if (typeof mapView !== 'undefined' && mapView.updateMyStation) mapView.updateMyStation();
@@ -468,6 +491,10 @@ function persistSettings() {
             mapColorQSO: state.mapColorQSO, mapColorSat: state.mapColorSat,
             termColorTx: state.termColorTx, termColorRx: state.termColorRx,
             termColorEcho: state.termColorEcho, termColorOwn: state.termColorOwn,
+            tncTxDelay: state.tncTxDelay, tncPersistence: state.tncPersistence,
+            tncSlotTime: state.tncSlotTime, tncTxTail: state.tncTxTail,
+            tncApplyOnConnect: state.tncApplyOnConnect,
+            toneFreq: state.toneFreq,
         }));
     } catch (e) {}
 }
