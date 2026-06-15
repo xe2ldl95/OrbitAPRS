@@ -234,7 +234,7 @@ function populateSettingsFields() {
     if (typeof updateDigipathOptions === 'function') updateDigipathOptions(!isSatMode());
     state.digipath = savedDigipath;
     document.getElementById('setPath').value = savedDigipath;
-    document.getElementById('setPathCustom').value = savedDigipath;
+    document.getElementById('setPathCustom').value = '';
     if (typeof updateAddDelBtn === 'function') updateAddDelBtn();
     document.getElementById('setLat').value = state.myLat;
     document.getElementById('setLon').value = state.myLon;
@@ -335,27 +335,6 @@ function updateGridFromCoords() {
     var lon = parseFloat(document.getElementById('setLon').value);
     if (!isNaN(lat) && !isNaN(lon)) {
         document.getElementById('setGrid').value = latLonToGrid(lat, lon, 4);
-    }
-}
-
-function updateDeviceInfo() {
-    var el = document.getElementById('tncDeviceInfo');
-    if (!el) return;
-    if (state.tnc && state.tnc.connected) {
-        var t = state.tnc.transport;
-        if (t._type === 'webusb' && t.device) {
-            el.textContent = t.device.productName || 'USB Device';
-            el.style.color = 'var(--text-bright)';
-        } else if (t._type === 'bluetooth' && t.device) {
-            el.textContent = t.device.name || 'Bluetooth Device';
-            el.style.color = 'var(--text-bright)';
-        } else {
-            el.textContent = 'Serial: Connected';
-            el.style.color = 'var(--text-bright)';
-        }
-    } else {
-        el.textContent = 'Disconnected';
-        el.style.color = '#888';
     }
 }
 

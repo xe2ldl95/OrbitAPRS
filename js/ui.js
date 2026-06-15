@@ -193,7 +193,6 @@ function toggleModal(id, show) {
         modal.classList.add('active');
         if (id === 'settingsModal') {
             populateSettingsFields();
-            updateDeviceInfo();
             populateFreqOverrides();
             renderSatListManage();
             switchSettingsTab('station');
@@ -382,6 +381,12 @@ function tncConnect() {
         }
     };
     state.tnc.connect(type, port, baud);
+}
+
+function clearHeardList() {
+    state.heardStations = [];
+    renderHeardList();
+    showToast('Heard stations cleared');
 }
 
 function renderHeardList() {
@@ -719,7 +724,6 @@ function readKISSFromTNC() {
 function onDigipathChange() {
     var sel = document.getElementById('setPath');
     var cust = document.getElementById('setPathCustom');
-    cust.value = sel.value;
     updateAddDelBtn();
 }
 

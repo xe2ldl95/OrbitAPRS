@@ -102,7 +102,6 @@ class TNC {
                 ? ' \u2014 Bluetooth SPP' : '';
             if (this.onStatus) this.onStatus('Connected (' + type + btLabel + ')');
             addTerminalLine('system', 'TNC connected (' + type + btLabel + ')');
-            if (typeof updateDeviceInfo === 'function') updateDeviceInfo();
             if (typeof state !== 'undefined' && state.tncApplyOnConnect) {
                 setTimeout(() => {
                     try {
@@ -133,12 +132,7 @@ class TNC {
 
         let port;
         try {
-            const existing = await navigator.serial.getPorts();
-            if (existing.length > 0) {
-                port = existing[0];
-            } else {
-                port = await navigator.serial.requestPort();
-            }
+            port = await navigator.serial.requestPort();
         } catch (err) {
             if (err.name === 'NotFoundError') {
                 throw new Error(isAndroid
@@ -470,7 +464,6 @@ class TNC {
         document.getElementById('tncStatusDot').className = 'status-dot idle';
         document.getElementById('tncStatusText').textContent = 'TNC: Disconnected';
         addTerminalLine('system', 'TNC disconnected');
-        if (typeof updateDeviceInfo === 'function') updateDeviceInfo();
     }
 
     _onTransportClose() {
