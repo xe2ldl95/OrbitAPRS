@@ -1,0 +1,9 @@
+{
+  "version": "2.0.0",
+  "buildDate": "2026-06-22T18:04:32.576Z",
+  "builtBy": "unknown",
+  "features": [
+    "tcp-kiss",
+    "native-install"
+  ]
+}
