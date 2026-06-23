@@ -5,7 +5,7 @@ const { execSync } = require('child_process');
 const isDev = process.argv.includes('--dev');
 const watchMode = process.argv.includes('--watch');
 
-const srcDir = 'H:\\Mi unidad\\OrbitAPRS';
+const srcDir = __dirname;
 const distDir = path.join(srcDir, 'dist');
 
 // Helper function to copy files recursively

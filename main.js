@@ -1,6 +1,74 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const net = require('net');
+
+// ── Raw TCP connections (Dire Wolf KISS) ──
+const tcpConnections = new Map();
+let tcpConnIdCounter = 0;
+
+function createTcpConnection(host, port, sender) {
+    return new Promise((resolve, reject) => {
+        const id = 'tcp_' + (++tcpConnIdCounter);
+        const socket = new net.Socket();
+        tcpConnections.set(id, { socket, sender });
+
+        const timeout = setTimeout(() => {
+            if (tcpConnections.has(id)) {
+                socket.destroy();
+                tcpConnections.delete(id);
+                reject(new Error('TCP connection timeout'));
+            }
+        }, 10000);
+
+        socket.connect(port, host, () => {
+            clearTimeout(timeout);
+            resolve(id);
+        });
+
+        socket.on('data', (data) => {
+            if (tcpConnections.has(id)) {
+                sender.send('tcp-data', id, data);
+            }
+        });
+
+        socket.on('close', (hadError) => {
+            if (tcpConnections.has(id)) {
+                tcpConnections.delete(id);
+                try { sender.send('tcp-close', id, hadError); } catch (_) {}
+            }
+        });
+
+        socket.on('error', (err) => {
+            clearTimeout(timeout);
+            if (tcpConnections.has(id)) {
+                tcpConnections.delete(id);
+                try { sender.send('tcp-error', id, err.message); } catch (_) {}
+                if (!socket.destroyed) socket.destroy();
+                reject(err);
+            }
+        });
+    });
+}
+
+ipcMain.handle('tcp-connect', async (event, host, port) => {
+    return createTcpConnection(host, port, event.sender);
+});
+
+ipcMain.on('tcp-write', (event, id, data) => {
+    const conn = tcpConnections.get(id);
+    if (conn) {
+        conn.socket.write(Buffer.from(data));
+    }
+});
+
+ipcMain.on('tcp-disconnect', (event, id) => {
+    const conn = tcpConnections.get(id);
+    if (conn) {
+        conn.socket.destroy();
+        tcpConnections.delete(id);
+    }
+});
 
 let mainWindow;
 let distPath;
