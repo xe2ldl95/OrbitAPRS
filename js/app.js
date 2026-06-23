@@ -176,7 +176,7 @@ function toggleBluetoothFields() {
     const baudGroup = document.getElementById('setTncBaud').closest('.form-group');
     const tcpHostPortGroup = document.querySelectorAll('.tcp-host-port');
     
-    if (type === 'bluetooth') {
+    if (type === 'bluetooth' || type === 'tcp') {
         baudGroup.style.display = 'none';
     } else {
         baudGroup.style.display = '';

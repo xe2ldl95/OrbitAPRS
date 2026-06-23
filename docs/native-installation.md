@@ -2,14 +2,56 @@
 
 OrbitAPRS can be installed as a native desktop application on Windows, macOS, and Linux.
 
-## Prerequisites
+## Automated Installation Scripts
+
+For a clean system with no prerequisites, use one of these scripts. They will install Node.js, Git, and all dependencies automatically.
+
+### Windows
+
+```powershell
+# Run in PowerShell (as normal user — admin prompted only when needed)
+.\scripts\install-windows.ps1
+```
+
+### Linux
+
+```bash
+# Run in terminal
+chmod +x scripts/install-linux.sh
+./scripts/install-linux.sh
+```
+
+### Updating
+
+After the initial install, run the updater to pull the latest code and rebuild:
+
+**Windows:**
+```powershell
+.\scripts\update-windows.ps1
+```
+
+**Linux:**
+```bash
+./scripts/update-linux.sh
+```
+
+Both updaters perform `git pull`, `npm install`, and `npm run build`. Close and reopen OrbitAPRS after updating.
+
+## Manual Setup
+
+### Prerequisites
 
 - **Node.js** 18+ (for building)
 - **npm** 9+ (for dependencies)
+- **Git** (for cloning)
 
-## Quick Start
+### Quick Start
 
 ```bash
+# Clone the repository
+git clone https://github.com/xe2ldl95/OrbitAPRS.git
+cd OrbitAPRS
+
 # Install dependencies
 npm install
 
