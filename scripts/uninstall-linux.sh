@@ -32,15 +32,6 @@ else
     echo -e "  ${YELLOW}Not found:${NC} $INSTALL_DIR"
 fi
 
-# Remove desktop launcher
-LAUNCHER_DIR="$HOME/.local/share/orbitaprs"
-if [ -d "$LAUNCHER_DIR" ]; then
-    if confirm "Remove launcher files '$LAUNCHER_DIR'?"; then
-        rm -rf "$LAUNCHER_DIR"
-        echo -e "  ${GREEN}✓${NC} Removed $LAUNCHER_DIR"
-    fi
-fi
-
 # Remove desktop entry
 DESKTOP_ENTRY="$HOME/.local/share/applications/orbitaprs.desktop"
 if [ -f "$DESKTOP_ENTRY" ]; then
@@ -62,7 +53,5 @@ echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}  OrbitAPRS uninstalled.${NC}"
 echo ""
 echo -e "${YELLOW}Node.js and system packages were NOT removed.${NC}"
-echo -e "If you want to remove Node.js:"
-echo -e "  nvm uninstall --lts     (if installed via nvm)"
-echo -e "  or use your package manager (apt, pacman, etc.)"
+echo -e "If you want to remove Node.js, use your package manager:"
 echo -e "${GREEN}========================================${NC}"
