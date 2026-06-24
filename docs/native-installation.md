@@ -2,40 +2,37 @@
 
 OrbitAPRS can be installed as a native desktop application on Windows, macOS, and Linux.
 
-## Automated Installation Scripts
+## Automated Installation (One-liner)
 
-For a clean system with no prerequisites, use one of these scripts. They will install Node.js, Git, and all dependencies automatically.
-
-### Windows
-
-```powershell
-# Run in PowerShell (as normal user — admin prompted only when needed)
-.\scripts\install-windows.ps1
-```
+No prerequisites required. Just run the command for your OS:
 
 ### Linux
 
 ```bash
-# Run in terminal
-chmod +x scripts/install-linux.sh
-./scripts/install-linux.sh
+curl -L https://github.com/xe2ldl95/OrbitAPRS/raw/main/scripts/install-linux.sh | bash
 ```
+
+### Windows
+
+```powershell
+curl.exe -L https://github.com/xe2ldl95/OrbitAPRS/raw/main/scripts/install-windows.ps1 | powershell -c -
+```
+
+Both scripts will install Node.js (if missing), download the source code, install dependencies, build the app, and create a desktop shortcut.
 
 ### Updating
 
-After the initial install, run the updater to pull the latest code and rebuild:
+**Linux:**
+```bash
+curl -L https://github.com/xe2ldl95/OrbitAPRS/raw/main/scripts/update-linux.sh | bash
+```
 
 **Windows:**
 ```powershell
-.\scripts\update-windows.ps1
+curl.exe -L https://github.com/xe2ldl95/OrbitAPRS/raw/main/scripts/update-windows.ps1 | powershell -c -
 ```
 
-**Linux:**
-```bash
-./scripts/update-linux.sh
-```
-
-Both updaters perform `git pull`, `npm install`, and `npm run build`. Close and reopen OrbitAPRS after updating.
+Both updaters download the latest source, reinstall dependencies, and rebuild. Close and reopen OrbitAPRS after updating.
 
 ### Uninstalling
 

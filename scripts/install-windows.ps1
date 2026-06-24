@@ -1,5 +1,5 @@
 # OrbitAPRS Windows Installer
-# Auto-installs Node.js, Git, clones repo, builds, and creates launcher
+# Auto-installs Node.js, downloads source, builds, and creates launcher
 
 param(
     [string]$InstallDir = "$env:USERPROFILE\OrbitAPRS",
@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$RepoUrl = "https://github.com/xe2ldl95/OrbitAPRS.git"
+$RepoUrl = "https://github.com/xe2ldl95/OrbitAPRS"
 
 function Write-Step {
     param([string]$Message, [string]$Color = "Yellow")
@@ -22,8 +22,7 @@ function Test-Admin {
 
 function Install-NodeJS {
     if (Get-Command node -ErrorAction SilentlyContinue) {
-        $ver = node --version
-        Write-Host "  Node.js $ver already installed." -ForegroundColor Green
+        Write-Host "  Node.js $(node --version) already installed." -ForegroundColor Green
         return
     }
     Write-Step "Installing Node.js..."
@@ -56,43 +55,29 @@ function Install-NodeJS {
 
     $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
     if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-        throw "Node.js installation failed. Please install manually from https://nodejs.org"
+        throw "Node.js installation failed. Install manually from https://nodejs.org"
     }
     Write-Host "  Node.js $(node --version) installed." -ForegroundColor Green
 }
 
-function Install-Git {
-    if (Get-Command git -ErrorAction SilentlyContinue) {
-        Write-Host "  Git already installed." -ForegroundColor Green
-        return
-    }
-    Write-Step "Installing Git..."
+function Download-Source {
+    Write-Step "Downloading OrbitAPRS..."
 
-    $wingetAvailable = Get-Command winget -ErrorAction SilentlyContinue
-    if ($wingetAvailable) {
-        & winget install -e --id Git.Git --silent --accept-package-agreements 2>&1
-        if ($LASTEXITCODE -eq 0) {
-            $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
-            if (Get-Command git -ErrorAction SilentlyContinue) { return }
-        }
+    if (-not (Test-Path -LiteralPath $InstallDir)) {
+        New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
     }
 
-    Write-Host "  Downloading Git installer..." -ForegroundColor DarkYellow
-    $url = "https://github.com/git-for-windows/git/releases/download/v2.48.1.windows.1/Git-2.48.1-64-bit.exe"
-    $exe = "$env:TEMP\git-install.exe"
-    Invoke-WebRequest -Uri $url -OutFile $exe -UseBasicParsing
-    $installArgs = "/VERYSILENT /NORESTART /NOCANCEL /SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /COMPONENTS=`"icons,ext,reg,assoc,gitlfs`""
-    if (-not (Test-Admin)) {
-        Start-Process $exe -Wait -Verb RunAs -ArgumentList $installArgs
-    } else {
-        Start-Process $exe -Wait -ArgumentList $installArgs
-    }
+    $zipUrl = "$RepoUrl/archive/main.tar.gz"
+    $tarGz = "$env:TEMP\orbitaprs.tar.gz"
 
-    $env:Path = [Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + [Environment]::GetEnvironmentVariable("Path", "User")
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        throw "Git installation failed. Please install manually from https://git-scm.com"
-    }
-    Write-Host "  Git installed." -ForegroundColor Green
+    Write-Host "  Downloading..." -ForegroundColor DarkYellow
+    curl.exe -L --silent --output $tarGz $zipUrl
+
+    Write-Host "  Extracting..." -ForegroundColor DarkYellow
+    tar -xzf $tarGz --strip-components=1 -C $InstallDir
+
+    Remove-Item -Path $tarGz -Force -ErrorAction SilentlyContinue
+    Write-Host "  Source code downloaded to $InstallDir" -ForegroundColor Green
 }
 
 # ── Main ──
@@ -103,27 +88,14 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 Install-NodeJS
-Install-Git
+Download-Source
 
-# Clone or update repo
-if (Test-Path -LiteralPath $InstallDir) {
-    Write-Step "Updating existing installation at $InstallDir..."
-    Set-Location -LiteralPath $InstallDir
-    git pull
-    if (-not $?) { throw "git pull failed" }
-} else {
-    Write-Step "Cloning repository to $InstallDir..."
-    git clone $RepoUrl $InstallDir
-    if (-not $?) { throw "git clone failed" }
-    Set-Location -LiteralPath $InstallDir
-}
+Set-Location -LiteralPath $InstallDir
 
-# Install npm dependencies
-Write-Step "Installing npm dependencies..."
+Write-Step "Installing npm dependencies (this downloads Electron, may take a while)..."
 npm install
 if (-not $?) { throw "npm install failed" }
 
-# Build web assets
 Write-Step "Building application..."
 npm run build
 if (-not $?) { throw "Build failed" }
