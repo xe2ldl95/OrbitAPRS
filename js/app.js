@@ -35,8 +35,10 @@ const state = {
     autoQSO: true,
     tocallMsgSat: 'CQ',
     tocallPosSat: 'APRS',
-    tocallMsgTer: 'APRS',
-    tocallPosTer: 'APRS',
+    tocallMsgTer: 'APZ100',
+    tocallPosTer: 'APZ100',
+    tncHost: 'localhost',
+    tncPort: '8001',
     rstDefault: '59',
     msgIdCounter: 0,
     lastTLEUpdate: null,
@@ -204,8 +206,8 @@ function loadSettings() {
                 state.myAlt = s.myAlt || 50;
                 state.qsoLog = s.qsoLog || [];
                 state.tncType = s.tncType || 'serial';
-                state.tncHost = s.tncHost || '';
-                state.tncPort = s.tncPort || '';
+                state.tncHost = s.tncHost || 'localhost';
+                state.tncPort = s.tncPort || '8001';
                 state.tncBaud = s.tncBaud || '57600';
                 state.logLines = s.logLines || 300;
                 state.autoQSO = s.autoQSO !== undefined ? s.autoQSO : true;
@@ -213,8 +215,8 @@ function loadSettings() {
                 state.rstDefault = s.rstDefault || '59';
                 state.tocallMsgSat = s.tocallMsgSat || s.tocall || 'CQ';
                 state.tocallPosSat = s.tocallPosSat || s.tocall || 'APRS';
-                state.tocallMsgTer = s.tocallMsgTer || s.tocall || 'APRS';
-                state.tocallPosTer = s.tocallPosTer || s.tocall || 'APRS';
+                state.tocallMsgTer = s.tocallMsgTer || s.tocall || 'APZ100';
+                state.tocallPosTer = s.tocallPosTer || s.tocall || 'APZ100';
                 state.msgIdCounter = s.msgIdCounter !== undefined ? s.msgIdCounter : 0;
                 state.lastTLEUpdate = s.lastTLEUpdate || null;
                 state.macros = (s.macros && s.macros.length && s.macros[0].template) ? s.macros : DEFAULT_MACROS.map(m => ({...m}));
@@ -311,8 +313,8 @@ function saveSettings() {
     document.getElementById('setGrid').value = state.myGrid;
     state.elevationOffset = parseFloat(document.getElementById('setElevationOffset').value) || 0;
     state.tncType = document.getElementById('setTncType').value || 'serial';
-    state.tncHost = document.getElementById('setTncHost').value.trim() || '';
-    state.tncPort = document.getElementById('setTncPort').value.trim() || '';
+    state.tncHost = document.getElementById('setTncHost').value.trim() || 'localhost';
+    state.tncPort = document.getElementById('setTncPort').value.trim() || '8001';
     state.tncBaud = document.getElementById('setTncBaud').value || '57600';
     state.logLines = parseInt(document.getElementById('setLogLines').value) || 300;
     state.autoQSO = document.getElementById('setAutoQSO').value === '1';
@@ -322,8 +324,8 @@ function saveSettings() {
         state.tocallMsgSat = document.getElementById('setTocallMsg').value.toUpperCase().trim() || 'CQ';
         state.tocallPosSat = document.getElementById('setTocallPos').value.toUpperCase().trim() || 'APRS';
     } else {
-        state.tocallMsgTer = document.getElementById('setTocallMsg').value.toUpperCase().trim() || 'APRS';
-        state.tocallPosTer = document.getElementById('setTocallPos').value.toUpperCase().trim() || 'APRS';
+        state.tocallMsgTer = document.getElementById('setTocallMsg').value.toUpperCase().trim() || 'APZ100';
+        state.tocallPosTer = document.getElementById('setTocallPos').value.toUpperCase().trim() || 'APZ100';
     }
     state.mapShowHeardSat = document.getElementById('mapShowHeardSat').checked;
     state.mapShowHeardTer = document.getElementById('mapShowHeardTer').checked;
@@ -493,7 +495,7 @@ function persistSettings() {
             myCall: state.myCall, myGrid: state.myGrid, txFreq: state.txFreq,
             digipath: state.digipath, myLat: state.myLat, myLon: state.myLon,
             myAlt: state.myAlt, qsoLog: state.qsoLog,
-            tncType: state.tncType, tncBaud: state.tncBaud,
+            tncType: state.tncType, tncHost: state.tncHost, tncPort: state.tncPort, tncBaud: state.tncBaud,
             logLines: state.logLines, autoQSO: state.autoQSO, rawMonitor: state.rawMonitor,
             rstDefault: state.rstDefault, tocall: state.tocallMsgSat,
             tocallMsgSat: state.tocallMsgSat, tocallPosSat: state.tocallPosSat,
