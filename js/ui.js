@@ -341,8 +341,10 @@ function tncConnect() {
         if (!isError) {
             document.getElementById('tncStatusDot').className = 'status-dot active';
             setTimeout(function() {
-                readTXGain();
-                state.tnc.sendCommand(0x06, new Uint8Array([0x0D]));
+                if (state.tncType !== 'tcp') {
+                    readTXGain();
+                    state.tnc.sendCommand(0x06, new Uint8Array([0x0D]));
+                }
             }, 1000);
         } else {
             document.getElementById('tncStatusDot').className = 'status-dot warning';
