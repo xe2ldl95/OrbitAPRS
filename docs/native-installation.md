@@ -37,6 +37,15 @@ After the initial install, run the updater to pull the latest code and rebuild:
 
 Both updaters perform `git pull`, `npm install`, and `npm run build`. Close and reopen OrbitAPRS after updating.
 
+### Uninstalling
+
+**Linux:**
+```bash
+./scripts/uninstall-linux.sh
+```
+
+**Windows:** Simply delete the installation folder and desktop shortcut (no registry changes).
+
 ## Manual Setup
 
 ### Prerequisites
