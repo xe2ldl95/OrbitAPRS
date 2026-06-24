@@ -8,8 +8,8 @@
     "build": "node build.js",
     "build:dev": "node build.js --dev",
     "start": "node build.js --watch",
-    "electron": "electron .",
-    "electron:dev": "electron . --dev",
+    "electron": "electron . --no-sandbox",
+    "electron:dev": "electron . --dev --no-sandbox",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": ["aprs", "satellite", "kiss", "tnc", "electron", "desktop"],
