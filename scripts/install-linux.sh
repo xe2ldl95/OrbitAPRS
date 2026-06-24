@@ -10,10 +10,12 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-step()  { echo -e "\n${YELLOW}>>${NC} $1"; }
-ok()    { echo -e "  ${GREEN}✓${NC} $1"; }
-err()   { echo -e "  ${RED}✗${NC} $1"; }
+step() { echo -e "\n${YELLOW}>>${NC} $1"; }
+ok()   { echo -e "  ${GREEN}✓${NC} $1"; }
+err()  { echo -e "  ${RED}✗${NC} $1"; }
+info() { echo -e "  ${CYAN}→${NC} $1"; }
 
+# ── Detect package manager ──
 detect_pkg_manager() {
     if command -v apt &>/dev/null; then
         PKG_MANAGER="apt"
@@ -32,12 +34,23 @@ detect_pkg_manager() {
         PKG_INSTALL="sudo zypper install -y"
         PKG_UPDATE="sudo zypper refresh"
     else
-        err "Unsupported package manager. Install Node.js manually."
+        err "Unsupported distribution. Install manually: https://github.com/xe2ldl95/OrbitAPRS"
         exit 1
     fi
     ok "Detected package manager: $PKG_MANAGER"
 }
 
+# ── Install base tools (curl, gnupg) needed for NodeSource ──
+install_base_tools() {
+    if command -v curl &>/dev/null && command -v gpg &>/dev/null; then
+        return
+    fi
+    step "Installing base tools (curl, gnupg)..."
+    $PKG_UPDATE
+    $PKG_INSTALL curl gnupg
+}
+
+# ── Install Node.js via NodeSource (apt) or distro packages ──
 install_nodejs() {
     if command -v node &>/dev/null; then
         ok "Node.js $(node --version) already installed"
@@ -45,30 +58,25 @@ install_nodejs() {
     fi
     step "Installing Node.js..."
 
-    # Prefer nvm (cleaner for users, no sudo)
-    if command -v curl &>/dev/null; then
-        echo "  Trying nvm..."
-        export NVM_DIR="$HOME/.nvm"
-        if [ ! -s "$NVM_DIR/nvm.sh" ]; then
-            curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
-        fi
-        [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-        if nvm --version &>/dev/null; then
-            nvm install --lts --latest-npm
-            nvm use --lts
-            ok "Node.js $(node --version) installed via nvm"
-            return
-        fi
-    fi
-
-    # Fallback: distribution packages
-    echo "  Falling back to $PKG_MANAGER..."
-    $PKG_UPDATE
     case "$PKG_MANAGER" in
-        apt)   $PKG_INSTALL nodejs npm ;;
-        pacman) $PKG_INSTALL nodejs npm ;;
-        dnf)   $PKG_INSTALL nodejs npm ;;
-        zypper) $PKG_INSTALL nodejs npm ;;
+        apt)
+            install_base_tools
+            info "Adding NodeSource repository for Node.js 22.x..."
+            curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+            $PKG_INSTALL nodejs
+            ;;
+        pacman)
+            $PKG_UPDATE
+            $PKG_INSTALL nodejs npm
+            ;;
+        dnf)
+            $PKG_UPDATE
+            $PKG_INSTALL nodejs npm
+            ;;
+        zypper)
+            $PKG_UPDATE
+            $PKG_INSTALL nodejs npm
+            ;;
     esac
 
     if ! command -v node &>/dev/null; then
@@ -76,8 +84,10 @@ install_nodejs() {
         exit 1
     fi
     ok "Node.js $(node --version) installed"
+    ok "npm $(npm --version) installed"
 }
 
+# ── Install Git ──
 install_git() {
     if command -v git &>/dev/null; then
         ok "Git already installed"
@@ -93,20 +103,22 @@ install_git() {
     ok "Git installed"
 }
 
+# ── Install Electron system dependencies ──
 install_electron_deps() {
     step "Installing system dependencies for Electron..."
     case "$PKG_MANAGER" in
         apt)
-            $PKG_INSTALL libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils libatspi2.0-0 libdrm2 libgbm1 libxkbcommon0
+            $PKG_INSTALL libgtk-3-0 libnotify4 libnss3 libxss1 libxtst6 xdg-utils \
+                         libatspi2.0-0 libdrm2 libgbm1 libxkbcommon0 libasound2
             ;;
         pacman)
-            $PKG_INSTALL gtk3 libnotify nss libxss xdg-utils
+            $PKG_INSTALL gtk3 libnotify nss libxss xdg-utils alsa-lib
             ;;
         dnf)
-            $PKG_INSTALL gtk3 libnotify nss libXScrnSaver xdg-utils
+            $PKG_INSTALL gtk3 libnotify nss libXScrnSaver xdg-utils alsa-lib
             ;;
         zypper)
-            $PKG_INSTALL gtk3 libnotify4 nss libXScrnSaver xdg-utils
+            $PKG_INSTALL gtk3 libnotify4 nss libXScrnSaver xdg-utils alsa
             ;;
     esac
     ok "System dependencies installed"
@@ -124,28 +136,38 @@ install_nodejs
 install_git
 install_electron_deps
 
-# Clone or update repo
+# Clone or update repo (as normal user, no sudo)
 if [ -d "$INSTALL_DIR" ]; then
     step "Updating existing installation at $INSTALL_DIR..."
     cd "$INSTALL_DIR"
     git pull
+    ok "Repository updated"
 else
     step "Cloning repository to $INSTALL_DIR..."
     git clone "$REPO_URL" "$INSTALL_DIR"
     cd "$INSTALL_DIR"
+    ok "Repository cloned"
+fi
+
+# Ensure ownership is correct (in case script was run with sudo earlier)
+if [ "$(id -u)" != "0" ]; then
+    chown -R "$(id -u):$(id -g)" "$INSTALL_DIR" 2>/dev/null || true
 fi
 
 # Install npm dependencies
-step "Installing npm dependencies..."
+step "Installing npm dependencies (this downloads Electron, may take a while)..."
 npm install
+ok "npm dependencies installed"
 
 # Build web assets
 step "Building application..."
 npm run build
+ok "Build complete"
 
 # Desktop integration
 step "Setting up desktop integration..."
 bash "$SCRIPT_DIR/install-desktop.sh"
+ok "Desktop entry created"
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
@@ -154,4 +176,10 @@ echo -e "${CYAN}  Location: $INSTALL_DIR${NC}"
 echo ""
 echo -e "  Run from application menu or:"
 echo -e "  ${CYAN}cd $INSTALL_DIR && npm run electron${NC}"
+echo ""
+echo -e "  To update later:"
+echo -e "  ${CYAN}./scripts/update-linux.sh${NC}"
+echo ""
+echo -e "  To uninstall:"
+echo -e "  ${CYAN}./scripts/uninstall-linux.sh${NC}"
 echo -e "${GREEN}========================================${NC}"
