@@ -591,6 +591,9 @@ function switchTerminalTab(tab) {
     if (tab === 'nav' && typeof navView !== 'undefined') {
         setTimeout(function() { navView.resize(); }, 50);
     }
+    if (tab === 'map' && typeof mapView !== 'undefined') {
+        setTimeout(function() { if (mapView.getMap()) mapView.getMap().invalidateSize(); }, 50);
+    }
 }
 
 document.addEventListener('keydown', function(e) {
