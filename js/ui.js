@@ -316,13 +316,17 @@ function tncConnect() {
         if (existing) {
             existing.lastHeard = Date.now();
             existing.count++;
-            if (!existing.grid) existing.grid = aprsFromPkt.grid || null;
+            if (aprsFromPkt.grid) existing.grid = aprsFromPkt.grid;
+            if (aprsFromPkt.lat !== null && aprsFromPkt.lat !== undefined) existing.lat = aprsFromPkt.lat;
+            if (aprsFromPkt.lon !== null && aprsFromPkt.lon !== undefined) existing.lon = aprsFromPkt.lon;
         } else {
             state.heardStations.unshift({
                 call: pkt.source,
                 lastHeard: Date.now(),
                 count: 1,
                 grid: aprsFromPkt.grid || null,
+                lat: aprsFromPkt.lat ?? null,
+                lon: aprsFromPkt.lon ?? null,
             });
             if (state.heardStations.length > 20) state.heardStations.pop();
         }

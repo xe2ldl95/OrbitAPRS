@@ -245,11 +245,14 @@
         var myPos = [state.myLat, state.myLon];
         for (var i = 0; i < state.heardStations.length; i++) {
             var h = state.heardStations[i];
-            if (!h.grid) continue;
-            if (h.grid.length < 4) continue;
+            var pos = null;
+            if (h.lat !== null && h.lat !== undefined && h.lon !== null && h.lon !== undefined) {
+                pos = { lat: h.lat, lon: h.lon };
+            } else if (h.grid && h.grid.length >= 4) {
+                try { pos = gridToLatLon(h.grid); } catch (e) {}
+            }
+            if (!pos) continue;
             try {
-                var pos = gridToLatLon(h.grid);
-                if (!pos) continue;
                 var m = L.marker([pos.lat, pos.lon], {
                     icon: L.divIcon({
                         className: '',
