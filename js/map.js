@@ -14,6 +14,11 @@
     var _qsoIdx = -1;
     var _qsoAllMode = false;
     var _mapMode = 'prediction';
+    var _tileLayer = null;
+
+    function tileUrlForStyle(style) {
+        return 'https://{s}.basemaps.cartocdn.com/' + style + '_all/{z}/{x}/{y}{r}.png';
+    }
 
     var satIcon = L.divIcon({
         className: '',
@@ -43,7 +48,8 @@
             zoomSnap: 0.5,
         });
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        var style = state.mapTileStyle || 'dark';
+        _tileLayer = L.tileLayer(tileUrlForStyle(style), {
             maxZoom: 19,
             subdomains: 'abcd',
         }).addTo(_map);
@@ -65,6 +71,15 @@
         // Set initial button state (Fixed by default)
         var initBtn = document.getElementById('mapFollowBtn');
         if (initBtn) { initBtn.textContent = '\u25c9 Fixed'; initBtn.classList.add('fixed'); }
+    }
+
+    function setTileStyle(style) {
+        if (!_map) return;
+        if (_tileLayer) _map.removeLayer(_tileLayer);
+        _tileLayer = L.tileLayer(tileUrlForStyle(style), {
+            maxZoom: 19,
+            subdomains: 'abcd',
+        }).addTo(_map);
     }
 
     function updateSatellite() {
@@ -471,6 +486,7 @@
         updateMyStation: updateMyStation,
         showQSO: showQSO,
         reset: resetView,
+        setTileStyle: setTileStyle,
         getMap: function () { return _map; },
     };
 })();

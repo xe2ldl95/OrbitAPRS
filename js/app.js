@@ -43,6 +43,7 @@ const state = {
     msgIdCounter: 0,
     lastTLEUpdate: null,
     heardStations: [],
+    heardStationsLimit: 20,
     macros: DEFAULT_MACROS.map(m => ({...m})),
     satFreqOverrides: {},
     elevationOffset: 0,
@@ -57,6 +58,8 @@ const state = {
     mapColorHeardTer: '#f0a030',
     mapColorQSO: '#2ecc71',
     mapColorSat: '#aaaaaa',
+    mapTileStyle: 'dark',
+    mapTileCache: true,
     termColorTx: '#f0a030',
     termColorRx: '#00e676',
     termColorEcho: '#008844',
@@ -232,6 +235,8 @@ function loadSettings() {
                 state.mapColorHeardTer = s.mapColorHeardTer || '#f0a030';
                 state.mapColorQSO = s.mapColorQSO || '#2ecc71';
                 state.mapColorSat = s.mapColorSat || '#aaaaaa';
+                state.mapTileStyle = s.mapTileStyle || 'dark';
+                state.mapTileCache = s.mapTileCache !== undefined ? s.mapTileCache : true;
                 state.termColorTx = s.termColorTx || '#f0a030';
                 state.termColorRx = s.termColorRx || '#00e676';
                 state.termColorEcho = s.termColorEcho || '#008844';
@@ -242,6 +247,7 @@ function loadSettings() {
                 state.tncTxTail = s.tncTxTail !== undefined ? s.tncTxTail : 20;
                 state.tncApplyOnConnect = s.tncApplyOnConnect !== undefined ? s.tncApplyOnConnect : false;
                 state.txGain = s.txGain !== undefined ? s.txGain : 50;
+                state.heardStationsLimit = s.heardStationsLimit || 20;
                 state.customPaths = Array.isArray(s.customPaths) ? s.customPaths : [];
                 state.chatList = Array.isArray(s.chatList) ? s.chatList : [];
                 state.chatActive = s.chatActive || null;
@@ -267,6 +273,7 @@ function populateSettingsFields() {
     document.getElementById('setTncBaud').value = state.tncBaud;
     document.getElementById('setLogLines').value = state.logLines;
     document.getElementById('setAutoQSO').value = state.autoQSO ? '1' : '0';
+    document.getElementById('setHeardLimit').value = state.heardStationsLimit;
     document.getElementById('setRawMonitor').checked = state.rawMonitor;
     document.getElementById('setRstDefault').value = state.rstDefault;
     updateTocallFields();
@@ -279,6 +286,8 @@ function populateSettingsFields() {
     document.getElementById('mapColorHeardTer').value = state.mapColorHeardTer;
     document.getElementById('mapColorQSO').value = state.mapColorQSO;
     document.getElementById('mapColorSat').value = state.mapColorSat;
+    document.getElementById('setMapTileStyle').value = state.mapTileStyle;
+    document.getElementById('setMapTileCache').checked = state.mapTileCache;
     document.getElementById('termColorTx').value = state.termColorTx;
     document.getElementById('termColorRx').value = state.termColorRx;
     document.getElementById('termColorEcho').value = state.termColorEcho;
@@ -318,6 +327,7 @@ function saveSettings() {
     state.tncBaud = document.getElementById('setTncBaud').value || '57600';
     state.logLines = parseInt(document.getElementById('setLogLines').value) || 300;
     state.autoQSO = document.getElementById('setAutoQSO').value === '1';
+    state.heardStationsLimit = parseInt(document.getElementById('setHeardLimit').value) || 20;
     state.rawMonitor = document.getElementById('setRawMonitor').checked;
     state.rstDefault = document.getElementById('setRstDefault').value || '59';
     if (isSatMode()) {
@@ -336,6 +346,8 @@ function saveSettings() {
     state.mapColorHeardTer = document.getElementById('mapColorHeardTer').value;
     state.mapColorQSO = document.getElementById('mapColorQSO').value;
     state.mapColorSat = document.getElementById('mapColorSat').value;
+    state.mapTileStyle = document.getElementById('setMapTileStyle').value || 'dark';
+    state.mapTileCache = document.getElementById('setMapTileCache').checked;
     state.termColorTx = document.getElementById('termColorTx').value;
     state.termColorRx = document.getElementById('termColorRx').value;
     state.termColorEcho = document.getElementById('termColorEcho').value;
@@ -351,6 +363,8 @@ function saveSettings() {
     updateDisplays();
     if (typeof mapView !== 'undefined' && mapView.updateMyStation) mapView.updateMyStation();
     if (typeof mapView !== 'undefined' && mapView.updateHeard) mapView.updateHeard();
+    if (typeof mapView !== 'undefined' && mapView.setTileStyle) mapView.setTileStyle(state.mapTileStyle);
+    if (typeof sendToSW === 'function') sendToSW({ type: 'SET_TILE_CACHE', enabled: state.mapTileCache });
     refreshSatPasses();
     toggleModal('settingsModal', false);
     showToast('Settings saved');
@@ -507,6 +521,7 @@ function persistSettings() {
             mapShowQSO: state.mapShowQSO, mapShowSat: state.mapShowSat, mapShowGeodesic: state.mapShowGeodesic,
             mapColorHeardSat: state.mapColorHeardSat, mapColorHeardTer: state.mapColorHeardTer,
             mapColorQSO: state.mapColorQSO, mapColorSat: state.mapColorSat,
+            mapTileStyle: state.mapTileStyle, mapTileCache: state.mapTileCache,
             termColorTx: state.termColorTx, termColorRx: state.termColorRx,
             termColorEcho: state.termColorEcho, termColorOwn: state.termColorOwn,
             tncTxDelay: state.tncTxDelay, tncPersistence: state.tncPersistence,
@@ -515,6 +530,7 @@ function persistSettings() {
             toneFreq: state.toneFreq, txGain: state.txGain,
             customPaths: state.customPaths,
             chatList: state.chatList,
+            heardStationsLimit: state.heardStationsLimit,
             chatActive: state.chatActive,
         }));
     } catch (e) {}

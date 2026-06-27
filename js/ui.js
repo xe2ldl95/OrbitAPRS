@@ -328,9 +328,9 @@ function tncConnect() {
                 lat: aprsFromPkt.lat ?? null,
                 lon: aprsFromPkt.lon ?? null,
             });
-            if (state.heardStations.length > 20) state.heardStations.pop();
+            if (state.heardStations.length > state.heardStationsLimit) state.heardStations.pop();
         }
-        renderHeardList();
+        requestHeardRender();
         // Chat: store received messages directed to us (terrestrial only)
         if (pkt.info && pkt.info[0] === ':' && !isSatMode()) {
             var msgBody = extractMessageBody(pkt.info);
@@ -409,6 +409,16 @@ function tncConnect() {
     } else {
         state.tnc.connect(type, port, baud);
     }
+}
+
+let _heardRenderPending = false;
+function requestHeardRender() {
+    if (_heardRenderPending) return;
+    _heardRenderPending = true;
+    requestAnimationFrame(function() {
+        _heardRenderPending = false;
+        renderHeardList();
+    });
 }
 
 function clearHeardList() {
@@ -963,4 +973,14 @@ function renderChatMessages(call) {
             '</div>';
     }).join('');
     el.scrollTop = el.scrollHeight;
+}
+
+function sendToSW(msg) {
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.controller.postMessage(msg);
+}
+
+function clearTileCache() {
+    sendToSW({ type: 'CLEAR_TILE_CACHE' });
+    showToast('Tile cache cleared');
 }

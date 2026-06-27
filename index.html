@@ -208,6 +208,7 @@
             <div class="tab-content" id="tab-logging" style="display:none;">
                 <div class="form-group"><label>Terminal History</label><select id="setLogLines"><option value="100">100 lines</option><option value="300" selected>300 lines</option><option value="500">500 lines</option></select></div>
                 <div class="form-group"><label>Auto-log QSOs from RX</label><select id="setAutoQSO"><option value="1">Enabled</option><option value="0">Disabled</option></select></div>
+                <div class="form-group"><label>Heard Stations Limit</label><select id="setHeardLimit"><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option><option value="150">150</option><option value="200">200</option><option value="500">500</option></select></div>
                 <div class="btn-row" style="justify-content:flex-start;">
                     <button class="btn btn-outline" style="color:#e74c3c;border-color:#e74c3c;" onclick="clearTerminal()">🧹 Clear Terminal</button>
                     <button class="btn btn-outline" onclick="exportQSOLog()">📥 Export QSO Log</button>
@@ -239,6 +240,18 @@
                     <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show distance</label>
                     <input type="checkbox" id="mapShowGeodesic" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
                     <span></span>
+
+                    <hr style="grid-column:1/-1;border:none;border-top:1px solid var(--border);margin:4px 0;">
+
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Tile style</label>
+                    <select id="setMapTileStyle" style="grid-column:span 2;">
+                        <option value="dark">Dark</option>
+                        <option value="light">Light</option>
+                    </select>
+
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Cache tiles for offline</label>
+                    <input type="checkbox" id="setMapTileCache" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
+                    <button class="btn btn-sm btn-outline" onclick="clearTileCache()" style="font-size:0.78em;justify-self:end;">Clear tile cache</button>
                 </div>
             </div>
 
@@ -394,6 +407,6 @@
     <script src="js/nav.js?v=2.2"></script>
     <script>function forceSWUpdate(){if('serviceWorker'in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(r){r.unregister()})});setTimeout(function(){location.reload()},500)}</script>
     <script>init(); if (typeof mapView !== 'undefined') mapView.init(); if (typeof navView !== 'undefined') navView.init();</script>
-    <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');</script>
+    <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').then(function(reg) { if (reg.active && typeof sendToSW === 'function') { sendToSW({ type: 'SET_TILE_CACHE', enabled: state.mapTileCache !== false }); } }).catch(function(){});</script>
 </body>
 </html>
