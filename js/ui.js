@@ -338,6 +338,16 @@ function tncConnect() {
                 addChatMessage(pkt.source, msgBody, 'received');
             }
         }
+        // Chat: handle third-party packets (}SOURCE>DEST:info)
+        if (pkt.info && pkt.info[0] === '}' && !isSatMode()) {
+            var tp = parseThirdPartyPacket(pkt.info);
+            if (tp && tp.info[0] === ':') {
+                var msgBody = extractMessageBody(tp.info);
+                if (msgBody && msgDestIsForUs(tp.info)) {
+                    addChatMessage(tp.source, msgBody, 'received');
+                }
+            }
+        }
     };
     state.tnc.onStatus = (msg, isError) => {
         showToast(msg, isError);
@@ -876,6 +886,18 @@ function extractMessageBody(info) {
     var seqIdx = body.indexOf('{');
     if (seqIdx >= 0) body = body.slice(0, seqIdx);
     return body.trim() || null;
+}
+
+function parseThirdPartyPacket(info) {
+    if (!info || info[0] !== '}') return null;
+    var inner = info.slice(1);
+    var gtIdx = inner.indexOf('>');
+    var colonIdx = inner.indexOf(':', gtIdx);
+    if (gtIdx < 0 || colonIdx < 0) return null;
+    return {
+        source: inner.slice(0, gtIdx),
+        info: inner.slice(colonIdx + 1)
+    };
 }
 
 function addChatMessage(call, text, type) {
