@@ -311,7 +311,8 @@ body {
     display: flex; flex-direction: column; gap: 6px;
 }
 .chat-sidebar {
-    width: 160px; flex-shrink: 0; border-left: 1px solid var(--border);
+    width: 160px; flex-shrink: 0; min-height: 0;
+    border-left: 1px solid var(--border);
     display: flex; flex-direction: column; background: #0d111a;
 }
 .chat-sidebar-header {

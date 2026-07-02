@@ -179,6 +179,45 @@ function clearTerminal() {
         '<div class="line system"><span class="timestamp">[CLEAR]</span> Terminal cleared</div>';
 }
 
+function handleClear() {
+    var panel = document.querySelector('.terminal-panel');
+    if (panel.classList.contains('chat-active')) {
+        toggleModal('chatClearModal', true);
+    } else {
+        clearTerminal();
+    }
+}
+
+function deleteChatCurrent() {
+    var call = state.chatActive;
+    if (!call) return;
+    if (!confirm('Delete conversation with ' + call + '?')) return;
+    delete _chatMessages[call];
+    state.chatList = state.chatList.filter(function(c) { return c.call !== call; });
+    state.chatActive = null;
+    saveChatMessages();
+    persistSettings();
+    renderChatList();
+    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">Select a chat to start</div>';
+    document.getElementById('packetTarget').value = '';
+    toggleModal('chatClearModal', false);
+    showToast('Conversation deleted');
+}
+
+function deleteAllChats() {
+    if (!confirm('Delete ALL conversations? This cannot be undone.')) return;
+    _chatMessages = {};
+    state.chatList = [];
+    state.chatActive = null;
+    saveChatMessages();
+    persistSettings();
+    renderChatList();
+    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">Select a chat to start</div>';
+    document.getElementById('packetTarget').value = '';
+    toggleModal('chatClearModal', false);
+    showToast('All conversations deleted');
+}
+
 function showToast(message, isError) {
     const toast = document.getElementById('toast');
     toast.textContent = message;

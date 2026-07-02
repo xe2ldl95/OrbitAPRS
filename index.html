@@ -47,7 +47,7 @@
                         <button class="panel-tab" data-tab="chat" onclick="switchTerminalTab('chat');renderChatView()">Chat</button>
                     </div>
                     <button class="btn btn-sm map-follow-btn" id="mapFollowBtn" style="display:none;" onclick="toggleMapFollow()" title="Toggle follow satellite">◎ Dynamic</button>
-                    <button class="btn btn-sm btn-outline" style="margin-left:auto;color:#e74c3c;border-color:#e74c3c;" onclick="clearTerminal()">Clear</button>
+                    <button class="btn btn-sm btn-outline" style="margin-left:auto;color:#e74c3c;border-color:#e74c3c;" onclick="handleClear()">Clear</button>
                 </div>
                 <div class="terminal" id="terminal">
                     <div class="line system"><span class="timestamp">[READY]</span> Terminal ready.</div>
@@ -125,6 +125,18 @@
                 <button class="btn btn-outline" onclick="refreshSatPasses();renderSatModal()">🔄 Refresh</button>
                 <button class="btn btn-outline" onclick="fetchTLEUpdate()">📡 Update TLE</button>
                 <button class="btn btn-primary" onclick="toggleModal('satModal',false)">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="chatClearModal">
+        <div class="modal" style="max-width:400px;height:auto;padding:24px;">
+            <h3>Clear Chat</h3>
+            <p style="color:#888;font-size:0.85em;margin-bottom:16px;">Choose an option:</p>
+            <div class="btn-row" style="flex-direction:column;">
+                <button class="btn btn-danger" onclick="deleteChatCurrent()" style="width:100%;text-align:center;">Delete this conversation</button>
+                <button class="btn btn-outline" style="width:100%;text-align:center;border-color:#e74c3c;color:#e74c3c;" onclick="deleteAllChats()">Delete all conversations</button>
+                <button class="btn btn-outline" onclick="toggleModal('chatClearModal',false)" style="width:100%;text-align:center;">Cancel</button>
             </div>
         </div>
     </div>
