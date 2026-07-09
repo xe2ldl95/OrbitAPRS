@@ -74,6 +74,10 @@ const state = {
     customPaths: [],
     chatList: [],
     chatActive: null,
+    beaconEnabled: false,
+    beaconInterval: 300,
+    beaconShareLocation: true,
+    beaconMessage: '',
 };
 
 function computeHeading(alpha, beta, gamma) {
@@ -149,6 +153,7 @@ function init() {
     } else {
         selectSatellite('iss');
     }
+    if (typeof updateBeaconState === 'function') updateBeaconState();
 
     document.getElementById('terminal').innerHTML =
         '<div class="line system"><span class="timestamp">[READY]</span> Terminal ready.</div>';
@@ -256,6 +261,10 @@ function loadSettings() {
                 state.chatList = Array.isArray(s.chatList) ? s.chatList : [];
                 state.selectedSat = s.selectedSat || null;
                 state.chatActive = s.chatActive || null;
+                state.beaconEnabled = s.beaconEnabled === true;
+                state.beaconInterval = s.beaconInterval || 300;
+                state.beaconShareLocation = s.beaconShareLocation !== false;
+                state.beaconMessage = s.beaconMessage || '';
             } catch (e) {}
         }
     } catch (e) {}
@@ -538,6 +547,10 @@ function persistSettings() {
             heardStationsLimit: state.heardStationsLimit,
             selectedSat: state.selectedSat,
             chatActive: state.chatActive,
+            beaconEnabled: state.beaconEnabled,
+            beaconInterval: state.beaconInterval,
+            beaconShareLocation: state.beaconShareLocation,
+            beaconMessage: state.beaconMessage,
         }));
     } catch (e) {}
 }

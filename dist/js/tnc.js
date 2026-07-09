@@ -14,6 +14,10 @@ class TCPTransport {
         this.isConnecting = false;
     }
 
+    _isElectron() {
+        return typeof window !== 'undefined' && window.electronAPI && typeof window.electronAPI.tcpConnect === 'function';
+    }
+
     async connect(host, port) {
         if (this.isConnecting) return;
         this.isConnecting = true;
@@ -21,62 +25,99 @@ class TCPTransport {
         try {
             addTerminalLine('system', 'TCP KISS: Connecting to ' + host + ':' + port + '...');
 
-            // Try raw TCP first via WebSocket (binary type), fallback to WebSocket
-            try {
-                this.socket = new WebSocket('ws://' + host + ':' + port);
-            } catch (_) {
-                try {
-                    this.socket = new WebSocket('wss://' + host + ':' + port);
-                } catch (__) {
-                    throw new Error('Could not create WebSocket connection to ' + host + ':' + port);
-                }
+            if (this._isElectron()) {
+                await this._connectRawTCP(host, port);
+            } else {
+                await this._connectWebSocket(host, port);
             }
-
-            this.socket.binaryType = 'arraybuffer';
-
-            return new Promise((resolve, reject) => {
-                const timeout = setTimeout(() => {
-                    reject(new Error('TCP connection timeout to ' + host + ':' + port));
-                    if (this.socket) this.socket.close();
-                }, 10000);
-
-                this.socket.onopen = () => {
-                    clearTimeout(timeout);
-                    addTerminalLine('system', 'TCP KISS: Connected to ' + host + ':' + port);
-                    this.reconnectAttempts = 0;
-                    this.isConnecting = false;
-                    resolve();
-                };
-
-                this.socket.onmessage = (event) => {
-                    const data = new Uint8Array(event.data);
-                    if (this.onData) this.onData(data);
-                };
-
-                this.socket.onclose = (event) => {
-                    clearTimeout(timeout);
-                    addTerminalLine('system', 'TCP KISS: Disconnected from ' + host + ':' + port + ' (code=' + event.code + ')');
-                    this.isConnecting = false;
-                    if (!event.wasClean) {
-                        this.attemptReconnect(host, port);
-                    }
-                };
-
-                this.socket.onerror = (error) => {
-                    clearTimeout(timeout);
-                    addTerminalLine('system', 'TCP KISS: Connection error: ' + (error.message || 'unknown'));
-                    this.isConnecting = false;
-                    if (this.socket) {
-                        try { this.socket.close(); } catch (_) {}
-                    }
-                    reject(new Error('TCP connection error to ' + host + ':' + port));
-                };
-            });
-
         } catch (err) {
             this.isConnecting = false;
             throw new Error('TCP connection failed: ' + err.message);
         }
+    }
+
+    async _connectRawTCP(host, port) {
+        const api = window.electronAPI;
+        try {
+            const connId = await api.tcpConnect(host, port);
+            this._tcpConnId = connId;
+            this.socket = { readyState: 1, connId: connId };
+
+            api.onTcpData(connId, (data) => {
+                if (this.onData) this.onData(data);
+            });
+            api.onTcpClose(connId, (hadError) => {
+                addTerminalLine('system', 'TCP KISS: Disconnected from ' + host + ':' + port);
+                this.isConnecting = false;
+                this.reconnectAttempts = 0;
+                if (hadError) {
+                    this.attemptReconnect(host, port);
+                }
+            });
+            api.onTcpError(connId, (error) => {
+                addTerminalLine('system', 'TCP KISS: Connection error: ' + error);
+                this.isConnecting = false;
+            });
+
+            addTerminalLine('system', 'TCP KISS: Connected to ' + host + ':' + port);
+            this.reconnectAttempts = 0;
+            this.isConnecting = false;
+        } catch (err) {
+            throw new Error('Raw TCP connection error: ' + err.message);
+        }
+    }
+
+    async _connectWebSocket(host, port) {
+        try {
+            this.socket = new WebSocket('ws://' + host + ':' + port);
+        } catch (_) {
+            try {
+                this.socket = new WebSocket('wss://' + host + ':' + port);
+            } catch (__) {
+                throw new Error('Could not create WebSocket connection to ' + host + ':' + port);
+            }
+        }
+
+        this.socket.binaryType = 'arraybuffer';
+
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('TCP connection timeout to ' + host + ':' + port));
+                if (this.socket) this.socket.close();
+            }, 10000);
+
+            this.socket.onopen = () => {
+                clearTimeout(timeout);
+                addTerminalLine('system', 'TCP KISS: Connected to ' + host + ':' + port);
+                this.reconnectAttempts = 0;
+                this.isConnecting = false;
+                resolve();
+            };
+
+            this.socket.onmessage = (event) => {
+                const data = new Uint8Array(event.data);
+                if (this.onData) this.onData(data);
+            };
+
+            this.socket.onclose = (event) => {
+                clearTimeout(timeout);
+                addTerminalLine('system', 'TCP KISS: Disconnected from ' + host + ':' + port + ' (code=' + event.code + ')');
+                this.isConnecting = false;
+                if (!event.wasClean) {
+                    this.attemptReconnect(host, port);
+                }
+            };
+
+            this.socket.onerror = (error) => {
+                clearTimeout(timeout);
+                addTerminalLine('system', 'TCP KISS: Connection error: ' + (error.message || 'unknown'));
+                this.isConnecting = false;
+                if (this.socket) {
+                    try { this.socket.close(); } catch (_) {}
+                }
+                reject(new Error('TCP connection error to ' + host + ':' + port));
+            };
+        });
     }
 
     async attemptReconnect(host, port) {
@@ -98,16 +139,31 @@ class TCPTransport {
     }
 
     write(data) {
-        if (!this.socket || this.socket.readyState !== WebSocket.OPEN) {
+        if (!this.socket) {
             throw new Error('TCP socket not connected');
         }
-        this.socket.send(data);
+        if (this._tcpConnId) {
+            window.electronAPI.tcpWrite(this._tcpConnId, data);
+        } else {
+            if (this.socket.readyState !== WebSocket.OPEN) {
+                throw new Error('TCP socket not connected');
+            }
+            this.socket.send(data);
+        }
     }
 
     disconnect() {
         if (this.reconnectTimeout) {
             clearTimeout(this.reconnectTimeout);
             this.reconnectTimeout = null;
+        }
+
+        if (this._tcpConnId) {
+            if (window.electronAPI) {
+                window.electronAPI.tcpDisconnect(this._tcpConnId);
+                window.electronAPI.removeTcpListeners(this._tcpConnId);
+            }
+            this._tcpConnId = null;
         }
 
         if (this.socket) {
@@ -519,11 +575,14 @@ class TNC {
         await this.transport.connect(host, port);
         this._writer = { write: async (data) => { this.transport.write(data); } };
         this._onClose = () => this._onTransportClose();
-        this._tcpDisconnectHandler = () => {
-            if (this.connected) { addTerminalLine('system', 'TCP disconnected'); this.disconnect(); }
-        };
-        if (this.transport.socket) {
-            this.transport.socket.addEventListener('close', this._tcpDisconnectHandler);
+        if (!this.transport._tcpConnId) {
+            // WebSocket transport: listen for close event
+            this._tcpDisconnectHandler = () => {
+                if (this.connected) { addTerminalLine('system', 'TCP disconnected'); this.disconnect(); }
+            };
+            if (this.transport.socket) {
+                this.transport.socket.addEventListener('close', this._tcpDisconnectHandler);
+            }
         }
         addTerminalLine('system', 'TCP KISS connected to ' + host + ':' + port);
     }

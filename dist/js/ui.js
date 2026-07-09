@@ -15,6 +15,8 @@ function resolveMacroTemplate(macro, target) {
     t = t.replace(/%R/g, tloc);
     t = t.replace(/%S/g, satName);
     t = t.replace(/%N/g, seq);
+    t = t.replace(/%T/g, macro.symbolTable || '/');
+    t = t.replace(/%Y/g, macro.symbol || '[');
     // Legacy brace tokens (backward compatibility)
     t = t.replace(/\{mycall\}/g, state.myCall || 'N0CALL');
     t = t.replace(/\{mygrid\}/g, (state.myGrid || '--').toUpperCase());
@@ -42,6 +44,7 @@ function renderMacroEditor() {
             '<input class="macro-name" value="' + escapeHTML(m.name || '') + '" placeholder="Name" onchange="updateMacro(' + i + ',\'name\',this.value)" maxlength="16">' +
             '<input class="macro-template" value="' + escapeHTML(m.template || '') + '" placeholder="Template" onchange="updateMacro(' + i + ',\'template\',this.value)" maxlength="200">' +
             '<label class="macro-log" title="Auto-log QSO when sent"><input type="checkbox" onchange="updateMacro(' + i + ',\'logQSO\',this.checked)"' + (m.logQSO ? ' checked' : '') + '>📝</label>' +
+            '<button class="macro-symbol-btn" onclick="openSymbolPicker(' + i + ')" title="Select APRS symbol: ' + (m.symbolTable || '/') + (m.symbol || '[') + '">' + escapeHTML((m.symbolTable || '/') + (m.symbol || '[')) + '</button>' +
             '<button class="macro-del" onclick="removeMacro(' + i + ')" title="Remove">✕</button>' +
         '</div>'
     ).join('');
@@ -55,7 +58,7 @@ function updateMacro(idx, field, value) {
 
 function addMacro() {
     const id = 'm' + Date.now();
-    state.macros.push({ id, name: 'New', icon: '🔘', template: 'Hello World', logQSO: false });
+    state.macros.push({ id, name: 'New', icon: '🔘', template: 'Hello World', logQSO: false, symbolTable: '/', symbol: '[' });
     renderMacroEditor();
     renderQuickActions();
 }
@@ -65,6 +68,55 @@ function removeMacro(idx) {
     state.macros.splice(idx, 1);
     renderMacroEditor();
     renderQuickActions();
+}
+
+var _symbolPickerIdx = -1;
+
+function jsEsc(str) {
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function openSymbolPicker(idx) {
+    _symbolPickerIdx = idx;
+    var m = state.macros[idx];
+    if (!m) return;
+    renderSymbolPicker(m.symbolTable || '/', m.symbol || '[');
+    toggleModal('symbolPickerModal', true);
+}
+
+function selectSymbol(table, sym) {
+    var m = state.macros[_symbolPickerIdx];
+    if (!m) return;
+    m.symbolTable = table;
+    m.symbol = sym;
+    renderMacroEditor();
+    renderQuickActions();
+    toggleModal('symbolPickerModal', false);
+}
+
+function renderSymbolPicker(activeTable, activeSymbol) {
+    var el = document.getElementById('symbolPickerContent');
+    if (!el) return;
+    var tables = ['/', '\\'];
+    var tableNames = { '/': 'Primary (/)', '\\': 'Alternate (\\)' };
+    var html = '<div class="symbol-table-toggle">';
+    var escSymbol = jsEsc(activeSymbol);
+    tables.forEach(function(t) {
+        var active = t === activeTable ? 'btn-primary' : 'btn-outline';
+        html += '<button class="btn btn-sm ' + active + '" onclick="renderSymbolPicker(\'' + jsEsc(t) + '\',\'' + escSymbol + '\')">' + tableNames[t] + '</button>';
+    });
+    html += '</div>';
+    html += '<div class="symbol-picker-grid">';
+    var syms = APRS_SYMBOLS[tables.indexOf(activeTable) === 0 ? 'primary' : 'alternate'];
+    var escTable = jsEsc(activeTable);
+    for (var code = 33; code <= 126; code++) {
+        var ch = String.fromCharCode(code);
+        var name = syms[ch] || 'Unknown';
+        var selected = ch === activeSymbol ? ' selected' : '';
+        html += '<div class="symbol-picker-cell' + selected + '" onclick="selectSymbol(\'' + escTable + '\',\'' + jsEsc(ch) + '\')" title="' + escapeHTML(name) + '">' + escapeHTML(ch) + '</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
 }
 
 function resetMacros() {
@@ -179,6 +231,45 @@ function clearTerminal() {
         '<div class="line system"><span class="timestamp">[CLEAR]</span> Terminal cleared</div>';
 }
 
+function handleClear() {
+    var panel = document.querySelector('.terminal-panel');
+    if (panel.classList.contains('chat-active')) {
+        toggleModal('chatClearModal', true);
+    } else {
+        clearTerminal();
+    }
+}
+
+function deleteChatCurrent() {
+    var call = state.chatActive;
+    if (!call) return;
+    if (!confirm('Delete conversation with ' + call + '?')) return;
+    delete _chatMessages[call];
+    state.chatList = state.chatList.filter(function(c) { return (c.baseCall || c.call) !== call; });
+    state.chatActive = null;
+    saveChatMessages();
+    persistSettings();
+    renderChatList();
+    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">Select a chat to start</div>';
+    document.getElementById('packetTarget').value = '';
+    toggleModal('chatClearModal', false);
+    showToast('Conversation deleted');
+}
+
+function deleteAllChats() {
+    if (!confirm('Delete ALL conversations? This cannot be undone.')) return;
+    _chatMessages = {};
+    state.chatList = [];
+    state.chatActive = null;
+    saveChatMessages();
+    persistSettings();
+    renderChatList();
+    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">Select a chat to start</div>';
+    document.getElementById('packetTarget').value = '';
+    toggleModal('chatClearModal', false);
+    showToast('All conversations deleted');
+}
+
 function showToast(message, isError) {
     const toast = document.getElementById('toast');
     toast.textContent = message;
@@ -198,6 +289,11 @@ function toggleModal(id, show) {
             switchSettingsTab('station');
         } else if (id === 'satModal') {
             renderSatModal();
+        } else if (id === 'beaconModal') {
+            document.getElementById('beaconInterval').value = state.beaconInterval;
+            document.getElementById('beaconShareLocation').checked = state.beaconShareLocation;
+            document.getElementById('beaconMessage').value = state.beaconMessage;
+            document.getElementById('beaconToggle').checked = state.beaconEnabled;
         }
     } else {
         modal.classList.remove('active');
@@ -283,6 +379,9 @@ document.getElementById('settingsModal').addEventListener('click', function(e) {
 document.getElementById('satModal').addEventListener('click', function(e) {
     if (e.target === this) toggleModal('satModal', false);
 });
+document.getElementById('beaconModal').addEventListener('click', function(e) {
+    if (e.target === this) toggleModal('beaconModal', false);
+});
 document.querySelector('.header .logo').addEventListener('click', () => {
     toggleModal('settingsModal', true);
     requestCompassPermission();
@@ -316,22 +415,36 @@ function tncConnect() {
         if (existing) {
             existing.lastHeard = Date.now();
             existing.count++;
-            if (!existing.grid) existing.grid = aprsFromPkt.grid || null;
+            if (aprsFromPkt.grid) existing.grid = aprsFromPkt.grid;
+            if (aprsFromPkt.lat !== null && aprsFromPkt.lat !== undefined) existing.lat = aprsFromPkt.lat;
+            if (aprsFromPkt.lon !== null && aprsFromPkt.lon !== undefined) existing.lon = aprsFromPkt.lon;
         } else {
             state.heardStations.unshift({
                 call: pkt.source,
                 lastHeard: Date.now(),
                 count: 1,
                 grid: aprsFromPkt.grid || null,
+                lat: aprsFromPkt.lat ?? null,
+                lon: aprsFromPkt.lon ?? null,
             });
-            if (state.heardStations.length > 20) state.heardStations.pop();
+            if (state.heardStations.length > state.heardStationsLimit) state.heardStations.pop();
         }
-        renderHeardList();
+        requestHeardRender();
         // Chat: store received messages directed to us (terrestrial only)
         if (pkt.info && pkt.info[0] === ':' && !isSatMode()) {
             var msgBody = extractMessageBody(pkt.info);
             if (msgBody && msgDestIsForUs(pkt.info)) {
                 addChatMessage(pkt.source, msgBody, 'received');
+            }
+        }
+        // Chat: handle third-party packets (}SOURCE>DEST:info)
+        if (pkt.info && pkt.info[0] === '}' && !isSatMode()) {
+            var tp = parseThirdPartyPacket(pkt.info);
+            if (tp && tp.info[0] === ':') {
+                var msgBody = extractMessageBody(tp.info);
+                if (msgBody && msgDestIsForUs(tp.info)) {
+                    addChatMessage(tp.source, msgBody, 'received');
+                }
             }
         }
     };
@@ -341,8 +454,10 @@ function tncConnect() {
         if (!isError) {
             document.getElementById('tncStatusDot').className = 'status-dot active';
             setTimeout(function() {
-                readTXGain();
-                state.tnc.sendCommand(0x06, new Uint8Array([0x0D]));
+                if (state.tncType !== 'tcp') {
+                    readTXGain();
+                    state.tnc.sendCommand(0x06, new Uint8Array([0x0D]));
+                }
             }, 1000);
         } else {
             document.getElementById('tncStatusDot').className = 'status-dot warning';
@@ -403,6 +518,16 @@ function tncConnect() {
     } else {
         state.tnc.connect(type, port, baud);
     }
+}
+
+let _heardRenderPending = false;
+function requestHeardRender() {
+    if (_heardRenderPending) return;
+    _heardRenderPending = true;
+    requestAnimationFrame(function() {
+        _heardRenderPending = false;
+        renderHeardList();
+    });
 }
 
 function clearHeardList() {
@@ -586,8 +711,13 @@ function switchTerminalTab(tab) {
     panel.classList.toggle('chat-active', tab === 'chat');
     var followBtn = document.getElementById('mapFollowBtn');
     followBtn.style.display = tab === 'map' ? '' : 'none';
+    var clearBtn = document.getElementById('clearBtn');
+    if (clearBtn) clearBtn.style.display = (tab === 'terminal' || tab === 'chat') ? '' : 'none';
     if (tab === 'nav' && typeof navView !== 'undefined') {
         setTimeout(function() { navView.resize(); }, 50);
+    }
+    if (tab === 'map' && typeof mapView !== 'undefined') {
+        setTimeout(function() { if (mapView.getMap()) mapView.getMap().invalidateSize(); }, 50);
     }
 }
 
@@ -600,6 +730,7 @@ document.addEventListener('keydown', function(e) {
         e.preventDefault();
         toggleModal('settingsModal', false);
         toggleModal('satModal', false);
+        toggleModal('beaconModal', false);
     }
 });
 
@@ -859,9 +990,22 @@ function extractMessageBody(info) {
     return body.trim() || null;
 }
 
+function parseThirdPartyPacket(info) {
+    if (!info || info[0] !== '}') return null;
+    var inner = info.slice(1);
+    var gtIdx = inner.indexOf('>');
+    var colonIdx = inner.indexOf(':', gtIdx);
+    if (gtIdx < 0 || colonIdx < 0) return null;
+    return {
+        source: inner.slice(0, gtIdx),
+        info: inner.slice(colonIdx + 1)
+    };
+}
+
 function addChatMessage(call, text, type) {
     if (!call || !text) return;
-    var key = call.toUpperCase().split('-')[0];
+    var fullCall = call.toUpperCase();
+    var key = fullCall.split('-')[0];
     if (!_chatMessages[key]) _chatMessages[key] = [];
     _chatMessages[key].push({
         type: type,
@@ -872,17 +1016,20 @@ function addChatMessage(call, text, type) {
     if (_chatMessages[key].length > 200) _chatMessages[key].shift();
     saveChatMessages();
 
-    var existing = state.chatList.findIndex(function(c) { return c.call === key; });
+    var existing = state.chatList.findIndex(function(c) { return (c.baseCall || c.call) === key; });
     if (existing >= 0) {
         var ch = state.chatList[existing];
         ch.lastMessage = text;
         ch.lastTime = Date.now();
+        ch.callFull = fullCall;
         if (key !== state.chatActive) ch.unread = (ch.unread || 0) + 1;
         state.chatList.splice(existing, 1);
         state.chatList.unshift(ch);
     } else {
         state.chatList.unshift({
             call: key,
+            baseCall: key,
+            callFull: fullCall,
             lastMessage: text,
             lastTime: Date.now(),
             unread: type === 'received' ? 1 : 0
@@ -895,15 +1042,22 @@ function addChatMessage(call, text, type) {
 }
 
 function selectChat(call) {
-    state.chatActive = call;
+    var baseCall = call.split('-')[0];
+    state.chatActive = baseCall;
     if (state.chatList.length) {
-        var found = state.chatList.find(function(c) { return c.call === call; });
-        if (found) found.unread = 0;
+        var found = state.chatList.find(function(c) { return (c.baseCall || c.call) === baseCall; });
+        if (found) {
+            found.unread = 0;
+            document.getElementById('packetTarget').value = found.callFull || found.call;
+        } else {
+            document.getElementById('packetTarget').value = call;
+        }
+    } else {
+        document.getElementById('packetTarget').value = call;
     }
     persistSettings();
-    document.getElementById('packetTarget').value = call;
     renderChatList();
-    renderChatMessages(call);
+    renderChatMessages(baseCall);
 }
 
 function renderChatView() {
@@ -924,15 +1078,16 @@ function renderChatList() {
         return;
     }
     el.innerHTML = state.chatList.map(function(c) {
-        var active = c.call === state.chatActive ? ' active' : '';
+        var displayCall = c.callFull || c.call;
+        var active = (c.baseCall || c.call) === state.chatActive ? ' active' : '';
         var unreadBadge = c.unread ? '<span class="chat-list-unread">' + c.unread + '</span>' : '';
         var ago = '';
         if (c.lastTime) {
             var secs = Math.round((Date.now() - c.lastTime) / 1000);
             ago = secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm';
         }
-        return '<div class="chat-list-item' + active + '" onclick="selectChat(\'' + c.call + '\')">' +
-            '<div class="chat-list-top"><span class="chat-list-call">' + c.call + '</span>' + unreadBadge + '<span class="chat-list-time">' + ago + '</span></div>' +
+        return '<div class="chat-list-item' + active + '" onclick="selectChat(\'' + displayCall + '\')">' +
+            '<div class="chat-list-top"><span class="chat-list-call">' + displayCall + '</span>' + unreadBadge + '<span class="chat-list-time">' + ago + '</span></div>' +
             '<div class="chat-list-preview">' + escapeHTML((c.lastMessage || '').slice(0, 40)) + '</div>' +
             '</div>';
     }).join('');
@@ -954,4 +1109,84 @@ function renderChatMessages(call) {
             '</div>';
     }).join('');
     el.scrollTop = el.scrollHeight;
+}
+
+// ── Terrestrial Beacon ──
+var _beaconTimer = null;
+
+function saveBeaconConfig() {
+    state.beaconInterval = parseInt(document.getElementById('beaconInterval').value) || 300;
+    state.beaconShareLocation = document.getElementById('beaconShareLocation').checked;
+    state.beaconMessage = document.getElementById('beaconMessage').value.trim();
+    state.beaconEnabled = document.getElementById('beaconToggle').checked;
+    persistSettings();
+    toggleModal('beaconModal', false);
+    updateBeaconState();
+    showToast('Beacon config saved');
+}
+
+function updateBeaconState() {
+    var dot = document.getElementById('beaconStatusDot');
+    if (!dot) return;
+    var isActive = state.beaconEnabled && state.selectedSat === 'terrestrial';
+    dot.className = 'status-dot ' + (isActive ? 'active' : 'idle');
+    if (isActive) {
+        startBeaconTimer();
+    } else {
+        stopBeaconTimer();
+    }
+}
+
+function startBeaconTimer() {
+    stopBeaconTimer();
+    if (!state.beaconEnabled || state.selectedSat !== 'terrestrial') return;
+    _beaconTimer = setInterval(sendBeaconPacket, state.beaconInterval * 1000);
+}
+
+function stopBeaconTimer() {
+    if (_beaconTimer) {
+        clearInterval(_beaconTimer);
+        _beaconTimer = null;
+    }
+}
+
+function sendBeaconPacket() {
+    if (state.myCall === 'N0CALL') return;
+    var lat = state.beaconShareLocation ? state.myLat : 0;
+    var lon = state.beaconShareLocation ? state.myLon : 0;
+    var aprsLat = latToAPRS(lat);
+    var aprsLon = lonToAPRS(lon);
+    var symbolTable = '/';
+    var symbol = '[';
+    var info = '=' + aprsLat + symbolTable + aprsLon + symbol;
+    if (state.beaconMessage) {
+        info += ' ' + state.beaconMessage;
+    }
+    var fullPacket = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, info);
+    addTerminalLine('tx', fullPacket);
+    if (state.tnc && state.tnc.connected) {
+        try {
+            var packet = {
+                infoField: info,
+                sourceCall: state.myCall,
+                destCall: state.tocallPosTer,
+                digipath: state.digipath,
+                fullPacket: fullPacket,
+            };
+            var ax25 = buildAX25Frame(packet);
+            state.tnc.send(ax25);
+        } catch (e) {
+            showToast('Beacon TX error: ' + e.message, true);
+        }
+    }
+}
+
+function sendToSW(msg) {
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.controller.postMessage(msg);
+}
+
+function clearTileCache() {
+    sendToSW({ type: 'CLEAR_TILE_CACHE' });
+    showToast('Tile cache cleared');
 }

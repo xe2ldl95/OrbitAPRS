@@ -63,7 +63,7 @@ function trimCache(cacheName, maxItems) {
 self.addEventListener('fetch', (event) => {
     var url = event.request.url;
 
-    if (url.indexOf('basemaps.cartocdn.com') !== -1) {
+    if (url.indexOf('basemaps.cartocdn.com') !== -1 || url.indexOf('tile.openstreetmap.org') !== -1) {
         if (!tileCacheEnabled) {
             event.respondWith(fetch(event.request));
             return;

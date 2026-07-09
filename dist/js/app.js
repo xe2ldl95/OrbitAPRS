@@ -1,9 +1,9 @@
 const DEFAULT_MACROS = [
-    { id: 'm0', name: 'CQ',  icon: '📡', template: ':CQ:%G via %S{%N',              logQSO: false },
-    { id: 'm1', name: 'Rpt', icon: '📻', template: ':%C:UR %RST{%N',                 logQSO: true  },
-    { id: 'm2', name: '73',  icon: '💬', template: ':%C:QSL TU 73{%N',               logQSO: true  },
-    { id: 'm3', name: 'Msg', icon: '✉️', template: ':CQ:via %S{%N',            logQSO: false },
-    { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}/{lon}[Por',                logQSO: false },
+    { id: 'm0', name: 'CQ',  icon: '📡', template: ':CQ:%G via %S{%N',              logQSO: false, symbolTable: '/', symbol: '[' },
+    { id: 'm1', name: 'Rpt', icon: '📻', template: ':%C:UR %RST{%N',                 logQSO: true,  symbolTable: '/', symbol: '[' },
+    { id: 'm2', name: '73',  icon: '💬', template: ':%C:QSL TU 73{%N',               logQSO: true,  symbolTable: '/', symbol: '[' },
+    { id: 'm3', name: 'Msg', icon: '✉️', template: ':CQ:via %S{%N',            logQSO: false, symbolTable: '/', symbol: '[' },
+    { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}%T{lon}%Y Por',              logQSO: false, symbolTable: '/', symbol: '[' },
 ];
 
 function isSatMode() {
@@ -35,12 +35,15 @@ const state = {
     autoQSO: true,
     tocallMsgSat: 'CQ',
     tocallPosSat: 'APRS',
-    tocallMsgTer: 'APRS',
-    tocallPosTer: 'APRS',
+    tocallMsgTer: 'APZ100',
+    tocallPosTer: 'APZ100',
+    tncHost: 'localhost',
+    tncPort: '8001',
     rstDefault: '59',
     msgIdCounter: 0,
     lastTLEUpdate: null,
     heardStations: [],
+    heardStationsLimit: 20,
     macros: DEFAULT_MACROS.map(m => ({...m})),
     satFreqOverrides: {},
     elevationOffset: 0,
@@ -55,6 +58,8 @@ const state = {
     mapColorHeardTer: '#f0a030',
     mapColorQSO: '#2ecc71',
     mapColorSat: '#aaaaaa',
+    mapTileStyle: 'dark',
+    mapTileCache: true,
     termColorTx: '#f0a030',
     termColorRx: '#00e676',
     termColorEcho: '#008844',
@@ -69,6 +74,10 @@ const state = {
     customPaths: [],
     chatList: [],
     chatActive: null,
+    beaconEnabled: false,
+    beaconInterval: 300,
+    beaconShareLocation: true,
+    beaconMessage: '',
 };
 
 function computeHeading(alpha, beta, gamma) {
@@ -139,7 +148,12 @@ function init() {
     setInterval(refreshSatPasses, 30000);
     setInterval(renderHeardList, 10000);
     refreshSatPasses();
-    selectSatellite('iss');
+    if (state.selectedSat) {
+        selectSatellite(state.selectedSat);
+    } else {
+        selectSatellite('iss');
+    }
+    if (typeof updateBeaconState === 'function') updateBeaconState();
 
     document.getElementById('terminal').innerHTML =
         '<div class="line system"><span class="timestamp">[READY]</span> Terminal ready.</div>';
@@ -204,8 +218,8 @@ function loadSettings() {
                 state.myAlt = s.myAlt || 50;
                 state.qsoLog = s.qsoLog || [];
                 state.tncType = s.tncType || 'serial';
-                state.tncHost = s.tncHost || '';
-                state.tncPort = s.tncPort || '';
+                state.tncHost = s.tncHost || 'localhost';
+                state.tncPort = s.tncPort || '8001';
                 state.tncBaud = s.tncBaud || '57600';
                 state.logLines = s.logLines || 300;
                 state.autoQSO = s.autoQSO !== undefined ? s.autoQSO : true;
@@ -213,8 +227,8 @@ function loadSettings() {
                 state.rstDefault = s.rstDefault || '59';
                 state.tocallMsgSat = s.tocallMsgSat || s.tocall || 'CQ';
                 state.tocallPosSat = s.tocallPosSat || s.tocall || 'APRS';
-                state.tocallMsgTer = s.tocallMsgTer || s.tocall || 'APRS';
-                state.tocallPosTer = s.tocallPosTer || s.tocall || 'APRS';
+                state.tocallMsgTer = s.tocallMsgTer || s.tocall || 'APZ100';
+                state.tocallPosTer = s.tocallPosTer || s.tocall || 'APZ100';
                 state.msgIdCounter = s.msgIdCounter !== undefined ? s.msgIdCounter : 0;
                 state.lastTLEUpdate = s.lastTLEUpdate || null;
                 state.macros = (s.macros && s.macros.length && s.macros[0].template) ? s.macros : DEFAULT_MACROS.map(m => ({...m}));
@@ -230,6 +244,8 @@ function loadSettings() {
                 state.mapColorHeardTer = s.mapColorHeardTer || '#f0a030';
                 state.mapColorQSO = s.mapColorQSO || '#2ecc71';
                 state.mapColorSat = s.mapColorSat || '#aaaaaa';
+                state.mapTileStyle = s.mapTileStyle || 'dark';
+                state.mapTileCache = s.mapTileCache !== undefined ? s.mapTileCache : true;
                 state.termColorTx = s.termColorTx || '#f0a030';
                 state.termColorRx = s.termColorRx || '#00e676';
                 state.termColorEcho = s.termColorEcho || '#008844';
@@ -240,9 +256,15 @@ function loadSettings() {
                 state.tncTxTail = s.tncTxTail !== undefined ? s.tncTxTail : 20;
                 state.tncApplyOnConnect = s.tncApplyOnConnect !== undefined ? s.tncApplyOnConnect : false;
                 state.txGain = s.txGain !== undefined ? s.txGain : 50;
+                state.heardStationsLimit = s.heardStationsLimit || 20;
                 state.customPaths = Array.isArray(s.customPaths) ? s.customPaths : [];
                 state.chatList = Array.isArray(s.chatList) ? s.chatList : [];
+                state.selectedSat = s.selectedSat || null;
                 state.chatActive = s.chatActive || null;
+                state.beaconEnabled = s.beaconEnabled === true;
+                state.beaconInterval = s.beaconInterval || 300;
+                state.beaconShareLocation = s.beaconShareLocation !== false;
+                state.beaconMessage = s.beaconMessage || '';
             } catch (e) {}
         }
     } catch (e) {}
@@ -265,6 +287,7 @@ function populateSettingsFields() {
     document.getElementById('setTncBaud').value = state.tncBaud;
     document.getElementById('setLogLines').value = state.logLines;
     document.getElementById('setAutoQSO').value = state.autoQSO ? '1' : '0';
+    document.getElementById('setHeardLimit').value = state.heardStationsLimit;
     document.getElementById('setRawMonitor').checked = state.rawMonitor;
     document.getElementById('setRstDefault').value = state.rstDefault;
     updateTocallFields();
@@ -277,6 +300,8 @@ function populateSettingsFields() {
     document.getElementById('mapColorHeardTer').value = state.mapColorHeardTer;
     document.getElementById('mapColorQSO').value = state.mapColorQSO;
     document.getElementById('mapColorSat').value = state.mapColorSat;
+    document.getElementById('setMapTileStyle').value = state.mapTileStyle;
+    document.getElementById('setMapTileCache').checked = state.mapTileCache;
     document.getElementById('termColorTx').value = state.termColorTx;
     document.getElementById('termColorRx').value = state.termColorRx;
     document.getElementById('termColorEcho').value = state.termColorEcho;
@@ -311,19 +336,20 @@ function saveSettings() {
     document.getElementById('setGrid').value = state.myGrid;
     state.elevationOffset = parseFloat(document.getElementById('setElevationOffset').value) || 0;
     state.tncType = document.getElementById('setTncType').value || 'serial';
-    state.tncHost = document.getElementById('setTncHost').value.trim() || '';
-    state.tncPort = document.getElementById('setTncPort').value.trim() || '';
+    state.tncHost = document.getElementById('setTncHost').value.trim() || 'localhost';
+    state.tncPort = document.getElementById('setTncPort').value.trim() || '8001';
     state.tncBaud = document.getElementById('setTncBaud').value || '57600';
     state.logLines = parseInt(document.getElementById('setLogLines').value) || 300;
     state.autoQSO = document.getElementById('setAutoQSO').value === '1';
+    state.heardStationsLimit = parseInt(document.getElementById('setHeardLimit').value) || 20;
     state.rawMonitor = document.getElementById('setRawMonitor').checked;
     state.rstDefault = document.getElementById('setRstDefault').value || '59';
     if (isSatMode()) {
         state.tocallMsgSat = document.getElementById('setTocallMsg').value.toUpperCase().trim() || 'CQ';
         state.tocallPosSat = document.getElementById('setTocallPos').value.toUpperCase().trim() || 'APRS';
     } else {
-        state.tocallMsgTer = document.getElementById('setTocallMsg').value.toUpperCase().trim() || 'APRS';
-        state.tocallPosTer = document.getElementById('setTocallPos').value.toUpperCase().trim() || 'APRS';
+        state.tocallMsgTer = document.getElementById('setTocallMsg').value.toUpperCase().trim() || 'APZ100';
+        state.tocallPosTer = document.getElementById('setTocallPos').value.toUpperCase().trim() || 'APZ100';
     }
     state.mapShowHeardSat = document.getElementById('mapShowHeardSat').checked;
     state.mapShowHeardTer = document.getElementById('mapShowHeardTer').checked;
@@ -334,6 +360,8 @@ function saveSettings() {
     state.mapColorHeardTer = document.getElementById('mapColorHeardTer').value;
     state.mapColorQSO = document.getElementById('mapColorQSO').value;
     state.mapColorSat = document.getElementById('mapColorSat').value;
+    state.mapTileStyle = document.getElementById('setMapTileStyle').value || 'dark';
+    state.mapTileCache = document.getElementById('setMapTileCache').checked;
     state.termColorTx = document.getElementById('termColorTx').value;
     state.termColorRx = document.getElementById('termColorRx').value;
     state.termColorEcho = document.getElementById('termColorEcho').value;
@@ -349,6 +377,8 @@ function saveSettings() {
     updateDisplays();
     if (typeof mapView !== 'undefined' && mapView.updateMyStation) mapView.updateMyStation();
     if (typeof mapView !== 'undefined' && mapView.updateHeard) mapView.updateHeard();
+    if (typeof mapView !== 'undefined' && mapView.setTileStyle) mapView.setTileStyle(state.mapTileStyle);
+    if (typeof sendToSW === 'function') sendToSW({ type: 'SET_TILE_CACHE', enabled: state.mapTileCache });
     refreshSatPasses();
     toggleModal('settingsModal', false);
     showToast('Settings saved');
@@ -493,7 +523,7 @@ function persistSettings() {
             myCall: state.myCall, myGrid: state.myGrid, txFreq: state.txFreq,
             digipath: state.digipath, myLat: state.myLat, myLon: state.myLon,
             myAlt: state.myAlt, qsoLog: state.qsoLog,
-            tncType: state.tncType, tncBaud: state.tncBaud,
+            tncType: state.tncType, tncHost: state.tncHost, tncPort: state.tncPort, tncBaud: state.tncBaud,
             logLines: state.logLines, autoQSO: state.autoQSO, rawMonitor: state.rawMonitor,
             rstDefault: state.rstDefault, tocall: state.tocallMsgSat,
             tocallMsgSat: state.tocallMsgSat, tocallPosSat: state.tocallPosSat,
@@ -505,6 +535,7 @@ function persistSettings() {
             mapShowQSO: state.mapShowQSO, mapShowSat: state.mapShowSat, mapShowGeodesic: state.mapShowGeodesic,
             mapColorHeardSat: state.mapColorHeardSat, mapColorHeardTer: state.mapColorHeardTer,
             mapColorQSO: state.mapColorQSO, mapColorSat: state.mapColorSat,
+            mapTileStyle: state.mapTileStyle, mapTileCache: state.mapTileCache,
             termColorTx: state.termColorTx, termColorRx: state.termColorRx,
             termColorEcho: state.termColorEcho, termColorOwn: state.termColorOwn,
             tncTxDelay: state.tncTxDelay, tncPersistence: state.tncPersistence,
@@ -513,7 +544,13 @@ function persistSettings() {
             toneFreq: state.toneFreq, txGain: state.txGain,
             customPaths: state.customPaths,
             chatList: state.chatList,
+            heardStationsLimit: state.heardStationsLimit,
+            selectedSat: state.selectedSat,
             chatActive: state.chatActive,
+            beaconEnabled: state.beaconEnabled,
+            beaconInterval: state.beaconInterval,
+            beaconShareLocation: state.beaconShareLocation,
+            beaconMessage: state.beaconMessage,
         }));
     } catch (e) {}
 }

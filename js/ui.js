@@ -289,6 +289,11 @@ function toggleModal(id, show) {
             switchSettingsTab('station');
         } else if (id === 'satModal') {
             renderSatModal();
+        } else if (id === 'beaconModal') {
+            document.getElementById('beaconInterval').value = state.beaconInterval;
+            document.getElementById('beaconShareLocation').checked = state.beaconShareLocation;
+            document.getElementById('beaconMessage').value = state.beaconMessage;
+            document.getElementById('beaconToggle').checked = state.beaconEnabled;
         }
     } else {
         modal.classList.remove('active');
@@ -373,6 +378,9 @@ document.getElementById('settingsModal').addEventListener('click', function(e) {
 });
 document.getElementById('satModal').addEventListener('click', function(e) {
     if (e.target === this) toggleModal('satModal', false);
+});
+document.getElementById('beaconModal').addEventListener('click', function(e) {
+    if (e.target === this) toggleModal('beaconModal', false);
 });
 document.querySelector('.header .logo').addEventListener('click', () => {
     toggleModal('settingsModal', true);
@@ -722,6 +730,7 @@ document.addEventListener('keydown', function(e) {
         e.preventDefault();
         toggleModal('settingsModal', false);
         toggleModal('satModal', false);
+        toggleModal('beaconModal', false);
     }
 });
 
@@ -1100,6 +1109,76 @@ function renderChatMessages(call) {
             '</div>';
     }).join('');
     el.scrollTop = el.scrollHeight;
+}
+
+// ── Terrestrial Beacon ──
+var _beaconTimer = null;
+
+function saveBeaconConfig() {
+    state.beaconInterval = parseInt(document.getElementById('beaconInterval').value) || 300;
+    state.beaconShareLocation = document.getElementById('beaconShareLocation').checked;
+    state.beaconMessage = document.getElementById('beaconMessage').value.trim();
+    state.beaconEnabled = document.getElementById('beaconToggle').checked;
+    persistSettings();
+    toggleModal('beaconModal', false);
+    updateBeaconState();
+    showToast('Beacon config saved');
+}
+
+function updateBeaconState() {
+    var dot = document.getElementById('beaconStatusDot');
+    if (!dot) return;
+    var isActive = state.beaconEnabled && state.selectedSat === 'terrestrial';
+    dot.className = 'status-dot ' + (isActive ? 'active' : 'idle');
+    if (isActive) {
+        startBeaconTimer();
+    } else {
+        stopBeaconTimer();
+    }
+}
+
+function startBeaconTimer() {
+    stopBeaconTimer();
+    if (!state.beaconEnabled || state.selectedSat !== 'terrestrial') return;
+    _beaconTimer = setInterval(sendBeaconPacket, state.beaconInterval * 1000);
+}
+
+function stopBeaconTimer() {
+    if (_beaconTimer) {
+        clearInterval(_beaconTimer);
+        _beaconTimer = null;
+    }
+}
+
+function sendBeaconPacket() {
+    if (state.myCall === 'N0CALL') return;
+    var lat = state.beaconShareLocation ? state.myLat : 0;
+    var lon = state.beaconShareLocation ? state.myLon : 0;
+    var aprsLat = latToAPRS(lat);
+    var aprsLon = lonToAPRS(lon);
+    var symbolTable = '/';
+    var symbol = '[';
+    var info = '=' + aprsLat + symbolTable + aprsLon + symbol;
+    if (state.beaconMessage) {
+        info += ' ' + state.beaconMessage;
+    }
+    var fullPacket = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, info);
+    addTerminalLine('tx', fullPacket);
+    if (state.tnc && state.tnc.connected) {
+        try {
+            var packet = {
+                infoField: info,
+                sourceCall: state.myCall,
+                destCall: state.tocallPosTer,
+                digipath: state.digipath,
+                fullPacket: fullPacket,
+            };
+            var ax25 = buildAX25Frame(packet);
+            state.tnc.send(ax25);
+        } catch (e) {
+            showToast('Beacon TX error: ' + e.message, true);
+        }
+    }
 }
 
 function sendToSW(msg) {

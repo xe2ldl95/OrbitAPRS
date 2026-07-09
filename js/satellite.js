@@ -397,5 +397,6 @@ function selectSatellite(satId) {
         updateDigipathOptions(sat.type === 'terrestrial');
         document.getElementById('pathDisplay').textContent = state.digipath;
         persistSettings();
+        if (typeof updateBeaconState === 'function') updateBeaconState();
     }
 }

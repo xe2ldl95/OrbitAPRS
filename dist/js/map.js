@@ -14,6 +14,28 @@
     var _qsoIdx = -1;
     var _qsoAllMode = false;
     var _mapMode = 'prediction';
+    var _tileLayer = null;
+
+    function tileUrlForStyle(style) {
+        if (style === 'light') {
+            return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        }
+        return 'https://{s}.basemaps.cartocdn.com/' + style + '_all/{z}/{x}/{y}{r}.png';
+    }
+
+    function buildTileOptions(style) {
+        var opts = {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        };
+        if (style === 'light') {
+            opts.subdomains = 'abc';
+        } else {
+            opts.subdomains = 'abcd';
+            opts.attribution += ' &copy; <a href="https://carto.com/">CARTO</a>';
+        }
+        return opts;
+    }
 
     var satIcon = L.divIcon({
         className: '',
@@ -37,16 +59,15 @@
 
         _map = L.map('mapContainer', {
             zoomControl: true,
-            attributionControl: false,
+            attributionControl: true,
             center: [20, 0],
             zoom: 2,
             zoomSnap: 0.5,
         });
 
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            maxZoom: 19,
-            subdomains: 'abcd',
-        }).addTo(_map);
+        var style = state.mapTileStyle || 'dark';
+        var tileOpts = buildTileOptions(style);
+        _tileLayer = L.tileLayer(tileUrlForStyle(style), tileOpts).addTo(_map);
 
         _myMarker = L.marker([state.myLat, state.myLon], { icon: myIcon })
             .addTo(_map)
@@ -65,6 +86,12 @@
         // Set initial button state (Fixed by default)
         var initBtn = document.getElementById('mapFollowBtn');
         if (initBtn) { initBtn.textContent = '\u25c9 Fixed'; initBtn.classList.add('fixed'); }
+    }
+
+    function setTileStyle(style) {
+        if (!_map) return;
+        if (_tileLayer) _map.removeLayer(_tileLayer);
+        _tileLayer = L.tileLayer(tileUrlForStyle(style), buildTileOptions(style)).addTo(_map);
     }
 
     function updateSatellite() {
@@ -245,11 +272,14 @@
         var myPos = [state.myLat, state.myLon];
         for (var i = 0; i < state.heardStations.length; i++) {
             var h = state.heardStations[i];
-            if (!h.grid) continue;
-            if (h.grid.length < 4) continue;
+            var pos = null;
+            if (h.lat !== null && h.lat !== undefined && h.lon !== null && h.lon !== undefined) {
+                pos = { lat: h.lat, lon: h.lon };
+            } else if (h.grid && h.grid.length >= 4) {
+                try { pos = gridToLatLon(h.grid); } catch (e) {}
+            }
+            if (!pos) continue;
             try {
-                var pos = gridToLatLon(h.grid);
-                if (!pos) continue;
                 var m = L.marker([pos.lat, pos.lon], {
                     icon: L.divIcon({
                         className: '',
@@ -468,6 +498,7 @@
         updateMyStation: updateMyStation,
         showQSO: showQSO,
         reset: resetView,
+        setTileStyle: setTileStyle,
         getMap: function () { return _map; },
     };
 })();

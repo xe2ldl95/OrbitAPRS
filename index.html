@@ -16,8 +16,11 @@
 
     <div class="header">
         <div class="logo" title="Settings (Ctrl+,)">
-            <div class="icon">🛰️</div>
-            <span>OrbitAPRS</span>
+            <img src="icons/icon-192.png" class="logo-icon" alt="OrbitAPRS">
+            <div class="logo-text">
+                <span class="logo-title">OrbitAPRS</span>
+                <span class="logo-subtitle">By XE2LDL</span>
+            </div>
         </div>
         <div class="utc-clock" id="utcClock">
             <span id="utcDate">---- -- --</span>
@@ -31,6 +34,10 @@
                 <span style="font-size:0.8em;color:#888;">Sat:</span>
                 <span class="status-dot idle" id="satStatusDot"></span>
                 <b id="satNameDisplay">ISS</b>
+            </span>
+            <span class="beacon-indicator" id="beaconIndicator" onclick="toggleModal('beaconModal',true)" title="Beacon configuration (terrestrial only)">
+                <span style="font-size:0.8em;color:#888;">BCN:</span>
+                <span class="status-dot idle" id="beaconStatusDot"></span>
             </span>
             <button class="btn btn-sm btn-outline" style="margin-left:auto;" onclick="toggleModal('settingsModal',true);requestCompassPermission()">⚙️</button>
         </div>
@@ -416,6 +423,36 @@
     </div>
 
     <div class="toast" id="toast"></div>
+
+    <div class="modal-overlay" id="beaconModal">
+        <div class="modal" style="max-width:400px;height:auto;">
+            <h3>📡 Beacon Configuration</h3>
+            <p style="font-size:0.8em;color:#888;margin-bottom:12px;">Sends APRS position packets periodically in terrestrial mode.</p>
+            <div class="form-group">
+                <label>Periodicidad (segundos)</label>
+                <input type="number" id="beaconInterval" value="300" min="10" max="3600" step="10">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:8px;">
+                <input type="checkbox" id="beaconShareLocation" checked style="width:16px;height:16px;cursor:pointer;">
+                <label style="margin:0;cursor:pointer;">Compartir ubicación</label>
+            </div>
+            <div class="form-group">
+                <label>Mensaje (opcional)</label>
+                <input type="text" id="beaconMessage" placeholder="Mensaje libre..." maxlength="50">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:12px;padding-top:8px;border-top:1px solid var(--border);">
+                <label style="margin:0;flex:1;font-weight:600;color:var(--text-bright);">Beacon</label>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="beaconToggle">
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="btn-row">
+                <button class="btn btn-outline" onclick="toggleModal('beaconModal',false)">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveBeaconConfig()">Confirmar</button>
+            </div>
+        </div>
+    </div>
 
     <script src="js/satellite-lib.js?v=2.2"></script>
     <script src="js/app.js?v=2.2"></script>

@@ -17,7 +17,24 @@
     var _tileLayer = null;
 
     function tileUrlForStyle(style) {
+        if (style === 'light') {
+            return 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+        }
         return 'https://{s}.basemaps.cartocdn.com/' + style + '_all/{z}/{x}/{y}{r}.png';
+    }
+
+    function buildTileOptions(style) {
+        var opts = {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        };
+        if (style === 'light') {
+            opts.subdomains = 'abc';
+        } else {
+            opts.subdomains = 'abcd';
+            opts.attribution += ' &copy; <a href="https://carto.com/">CARTO</a>';
+        }
+        return opts;
     }
 
     var satIcon = L.divIcon({
@@ -42,17 +59,15 @@
 
         _map = L.map('mapContainer', {
             zoomControl: true,
-            attributionControl: false,
+            attributionControl: true,
             center: [20, 0],
             zoom: 2,
             zoomSnap: 0.5,
         });
 
         var style = state.mapTileStyle || 'dark';
-        _tileLayer = L.tileLayer(tileUrlForStyle(style), {
-            maxZoom: 19,
-            subdomains: 'abcd',
-        }).addTo(_map);
+        var tileOpts = buildTileOptions(style);
+        _tileLayer = L.tileLayer(tileUrlForStyle(style), tileOpts).addTo(_map);
 
         _myMarker = L.marker([state.myLat, state.myLon], { icon: myIcon })
             .addTo(_map)
@@ -76,10 +91,7 @@
     function setTileStyle(style) {
         if (!_map) return;
         if (_tileLayer) _map.removeLayer(_tileLayer);
-        _tileLayer = L.tileLayer(tileUrlForStyle(style), {
-            maxZoom: 19,
-            subdomains: 'abcd',
-        }).addTo(_map);
+        _tileLayer = L.tileLayer(tileUrlForStyle(style), buildTileOptions(style)).addTo(_map);
     }
 
     function updateSatellite() {
