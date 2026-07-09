@@ -31,8 +31,8 @@ function logPacketFromTNC(parsed) {
             var remoteGrid = aprsData.grid || pending.grid;
             logQSO(pending.satId, parsed.source, remoteGrid,
                 state.rstDefault, state.rstDefault, 'confirmed');
-            addTerminalLine('system', 'QSO confirmed with ' + parsed.source + ' grid ' + remoteGrid);
-            showToast('QSO confirmed: ' + parsed.source);
+                addTerminalLine('system', t('toast.qso_confirmed') + parsed.source + ' grid ' + remoteGrid);
+            showToast(t('toast.qso_confirmed') + parsed.source);
             state.pendingQSOs.splice(pendingIdx, 1);
             persistSettings();
             return;

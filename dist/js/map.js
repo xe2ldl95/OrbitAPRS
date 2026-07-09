@@ -85,7 +85,7 @@
 
         // Set initial button state (Fixed by default)
         var initBtn = document.getElementById('mapFollowBtn');
-        if (initBtn) { initBtn.textContent = '\u25c9 Fixed'; initBtn.classList.add('fixed'); }
+        if (initBtn) { initBtn.textContent = '\u25c9 ' + t('btn.fixed'); initBtn.classList.add('fixed'); }
     }
 
     function setTileStyle(style) {
@@ -109,7 +109,7 @@
             if (_map.hasLayer(_satTrack)) _map.removeLayer(_satTrack);
             _satTrack.clearLayers();
             document.getElementById('satStatusDot').className = 'status-dot active';
-            document.getElementById('satNameDisplay').textContent = 'TERRESTRIAL';
+            document.getElementById('satNameDisplay').textContent = t('label.terrestrial');
             var dopEl = document.getElementById('utcDoppler');
             dopEl.innerHTML = state.txFreq.toFixed(3) + ' MHz';
             dopEl.style.display = 'inline';
@@ -409,7 +409,7 @@
         _qsoAllMode = !_qsoAllMode;
         var btn = document.getElementById('qsoViewToggle');
         if (btn) {
-            btn.textContent = _qsoAllMode ? 'All' : 'One';
+            btn.textContent = _qsoAllMode ? t('btn.all_view') : t('btn.one_view');
             btn.classList.toggle('active', _qsoAllMode);
         }
         if (_mode === 'qso-detail' && _qsoIdx >= 0) {
@@ -444,7 +444,7 @@
 
         var btn = document.getElementById('mapModeToggle');
         if (btn) {
-            btn.textContent = mode === 'qso' ? 'QSO' : 'Sat';
+            btn.textContent = mode === 'qso' ? t('btn.qso_mode') : t('btn.sat_mode');
             btn.classList.toggle('active', mode === 'qso');
         }
     }
@@ -457,7 +457,7 @@
         _qsoGroup.clearLayers();
         setMapMode('prediction');
         var btn = document.getElementById('mapFollowBtn');
-        if (btn) { btn.textContent = '\u25c9 Fixed'; btn.classList.add('fixed'); }
+        if (btn) { btn.textContent = '\u25c9 ' + t('btn.fixed'); btn.classList.add('fixed'); }
         updateHeard();
         updateSatellite();
         _map.setView([20, 0], 2);
@@ -475,7 +475,7 @@
 
         _followSat = !_followSat;
         if (_followSat) {
-            btn.textContent = '◎ Dynamic';
+            btn.textContent = '◎ ' + t('btn.dynamic');
             btn.classList.remove('fixed');
             // Center immediately on satellite
             if (_satMarker) {
@@ -483,14 +483,30 @@
                 _map.setView([ll.lat, ll.lng], Math.max(_map.getZoom(), 3));
             }
         } else {
-            btn.textContent = '◉ Fixed';
+            btn.textContent = '◉ ' + t('btn.fixed');
             btn.classList.add('fixed');
         }
+    }
+
+    function toggleMapTile() {
+        state.mapTileStyle = state.mapTileStyle === 'dark' ? 'light' : 'dark';
+        setTileStyle(state.mapTileStyle);
+        persistSettings();
+        updateTileToggleBtn();
+    }
+
+    function updateTileToggleBtn() {
+        var btn = document.getElementById('mapTileToggle');
+        if (!btn) return;
+        var isDark = state.mapTileStyle === 'dark';
+        btn.textContent = isDark ? t('btn.tile_light') : t('btn.tile_dark');
     }
 
     window.toggleMapFollow = toggleMapFollow;
     window.toggleQSOView = toggleQSOView;
     window.toggleMapMode = toggleMapMode;
+    window.toggleMapTile = toggleMapTile;
+    window.updateTileToggleBtn = updateTileToggleBtn;
 
     window.mapView = {
         init: initMap,

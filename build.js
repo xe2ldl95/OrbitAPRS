@@ -46,6 +46,7 @@ function build() {
         'manifest.json',
         'sw.js',
         'css/style.css',
+        'js/i18n.js',
         'js/tnc.js',
         'js/app.js',
         'js/ui.js',

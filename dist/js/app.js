@@ -78,6 +78,7 @@ const state = {
     beaconInterval: 300,
     beaconShareLocation: true,
     beaconMessage: '',
+    lang: 'es',
 };
 
 function computeHeading(alpha, beta, gamma) {
@@ -154,11 +155,12 @@ function init() {
         selectSatellite('iss');
     }
     if (typeof updateBeaconState === 'function') updateBeaconState();
+    if (typeof applyLanguage === 'function') applyLanguage();
 
     document.getElementById('terminal').innerHTML =
-        '<div class="line system"><span class="timestamp">[READY]</span> Terminal ready.</div>';
+        '<div class="line system"><span class="timestamp">[READY]</span> ' + t('terminal.ready') + '</div>';
     if (location.protocol === 'file:') {
-        addTerminalLine('system', 'file:// blocks some APIs. Serve via: npx serve .');
+        addTerminalLine('system', t('terminal.file_warning'));
     }
     document.getElementById('setTncType').addEventListener('change', toggleBluetoothFields);
     toggleBluetoothFields();
@@ -174,12 +176,12 @@ function init() {
     try {
         if (navigator.serial) {
             navigator.serial.addEventListener('connect', () => {
-                addTerminalLine('system', 'USB serial device detected. Click Connect.');
-                showToast('USB TNC detected! Click Connect.');
+                addTerminalLine('system', t('terminal.usb_detected'));
+                showToast(t('toast.tnc_detected'));
                 document.getElementById('tncStatusDot').className = 'status-dot warning';
             });
             navigator.serial.addEventListener('disconnect', () => {
-                addTerminalLine('system', 'USB serial device removed');
+                addTerminalLine('system', t('terminal.usb_removed'));
             });
         }
     } catch (_) {}
@@ -265,6 +267,7 @@ function loadSettings() {
                 state.beaconInterval = s.beaconInterval || 300;
                 state.beaconShareLocation = s.beaconShareLocation !== false;
                 state.beaconMessage = s.beaconMessage || '';
+                state.lang = s.lang || 'es';
             } catch (e) {}
         }
     } catch (e) {}
@@ -314,14 +317,17 @@ function populateSettingsFields() {
     document.getElementById('setToneFreq').value = String(state.toneFreq);
     document.getElementById('setTXGain').value = state.txGain;
     document.getElementById('txGainVal').textContent = state.txGain + '%';
+    if (document.getElementById('setLang')) {
+        document.getElementById('setLang').value = state.lang || 'es';
+    }
     updateTocallFields();
 }
 
 function updateTocallFields() {
     const isSat = isSatMode();
     const mode = isSat ? 'SAT' : 'TER';
-    document.getElementById('labelTocallMsg').textContent = 'Tocall messages (' + mode + ')';
-    document.getElementById('labelTocallPos').textContent = 'Tocall position (' + mode + ')';
+    document.getElementById('labelTocallMsg').textContent = t('label.tocall_msg') + ' (' + mode + ')';
+    document.getElementById('labelTocallPos').textContent = t('label.tocall_pos') + ' (' + mode + ')';
     document.getElementById('setTocallMsg').value = isSat ? state.tocallMsgSat : state.tocallMsgTer;
     document.getElementById('setTocallPos').value = isSat ? state.tocallPosSat : state.tocallPosTer;
 }
@@ -381,7 +387,7 @@ function saveSettings() {
     if (typeof sendToSW === 'function') sendToSW({ type: 'SET_TILE_CACHE', enabled: state.mapTileCache });
     refreshSatPasses();
     toggleModal('settingsModal', false);
-    showToast('Settings saved');
+    showToast(t('toast.settings_saved'));
 }
 
 function updateGridFromCoords() {
@@ -438,15 +444,15 @@ async function addSatelliteByNorad() {
     var input = document.getElementById('setNoradId');
     if (!input) return;
     var val = input.value.trim();
-    if (!val) { showToast('Enter a NORAD ID', true); return; }
+    if (!val) { showToast(t('toast.norad_required'), true); return; }
     var noradId = parseInt(val, 10);
-    if (isNaN(noradId)) { showToast('Invalid NORAD ID', true); return; }
+    if (isNaN(noradId)) { showToast(t('toast.norad_invalid'), true); return; }
     if (satelliteDB.some(function(s) { return s.noradId === noradId; })) {
-        showToast('Satellite already in list', true);
+        showToast(t('toast.sat_exists'), true);
         return;
     }
     try {
-        showToast('Fetching TLE for NORAD ' + noradId + '...');
+        showToast(t('toast.tle_fetching'));
         var resp = await fetch('https://celestrak.org/NORAD/elements/gp.php?CATNR=' + noradId + '&FORMAT=TLE', {
             headers: { 'Accept': 'text/plain, */*' }
         });
@@ -466,7 +472,7 @@ async function addSatelliteByNorad() {
                 tle2 = line;
             }
         }
-        if (!tle1 || !tle2) throw new Error('Could not parse TLE');
+        if (!tle1 || !tle2) throw new Error(t('toast.tle_parse_error'));
         var id = 'user_' + noradId;
         var sat = {
             id: id, noradId: noradId, name: name,
@@ -480,9 +486,9 @@ async function addSatelliteByNorad() {
         renderSatListManage();
         renderSatModal();
         input.value = '';
-        showToast('Added ' + name);
+        showToast(t('toast.sat_added') + ' ' + name);
     } catch (err) {
-        showToast('Error: ' + err.message, true);
+        showToast(t('toast.error') + ' ' + err.message, true);
     }
 }
 
@@ -491,7 +497,7 @@ function removeSatellite(noradId) {
     if (idx >= 0) {
         var sat = satelliteDB[idx];
         if (sat.id === 'terrestrial' || sat.id === 'iss') {
-            showToast('Cannot remove default satellite', true);
+            showToast(t('toast.cannot_remove_default'), true);
             return;
         }
         satelliteDB.splice(idx, 1);
@@ -501,7 +507,7 @@ function removeSatellite(noradId) {
     persistSettings();
     renderSatListManage();
     renderSatModal();
-    showToast('Satellite removed');
+    showToast(t('toast.sat_removed'));
 }
 
 function renderSatListManage() {
@@ -551,6 +557,7 @@ function persistSettings() {
             beaconInterval: state.beaconInterval,
             beaconShareLocation: state.beaconShareLocation,
             beaconMessage: state.beaconMessage,
+            lang: state.lang,
         }));
     } catch (e) {}
 }
@@ -578,10 +585,10 @@ function updateDisplays() {
 
 function useGPSSettings() {
     if (!navigator.geolocation) {
-        showToast('Geolocation not available', true);
+        showToast(t('toast.gps_unavailable'), true);
         return;
     }
-    showToast('Requesting GPS location...');
+    showToast(t('toast.gps_requesting'));
     navigator.geolocation.getCurrentPosition(
         (pos) => {
             document.getElementById('setLat').value = pos.coords.latitude.toFixed(6);
@@ -593,7 +600,7 @@ function useGPSSettings() {
             saveSettings();
         },
         (err) => {
-            showToast('GPS error: ' + err.message, true);
+            showToast(t('toast.gps_error') + ' ' + err.message, true);
         },
         { enableHighAccuracy: true, timeout: 10000 }
     );

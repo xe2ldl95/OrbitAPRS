@@ -64,7 +64,7 @@ function addMacro() {
 }
 
 function removeMacro(idx) {
-    if (state.macros.length <= 1) { showToast('Need at least 1 macro', true); return; }
+    if (state.macros.length <= 1) {     showToast(t('toast.need_macro'), true); return; }
     state.macros.splice(idx, 1);
     renderMacroEditor();
     renderQuickActions();
@@ -123,12 +123,12 @@ function resetMacros() {
     state.macros = DEFAULT_MACROS.map(m => ({...m}));
     renderMacroEditor();
     renderQuickActions();
-    showToast('Macros reset to defaults');
+    showToast(t('toast.macros_reset'));
 }
 
 function sendQuickAction(action) {
     const target = document.getElementById('packetTarget').value.trim().toUpperCase();
-    if (state.myCall === 'N0CALL') { showToast('Set your callsign first', true); return; }
+    if (state.myCall === 'N0CALL') { showToast(t('toast.set_callsign'), true); return; }
     const macro = state.macros.find(m => m.id === action);
     if (!macro) {
         addTerminalLine('system', 'TX: macro "' + action + '" not found');
@@ -186,15 +186,15 @@ function sendQuickAction(action) {
                             time: getUTCNow(),
                         });
                         persistSettings();
-                        addTerminalLine('system', 'QSO pending with ' + tc.toUpperCase() + ' (awaiting RX confirmation)');
+                        addTerminalLine('system', t('terminal.qso_pending') + tc.toUpperCase());
                     }
                 }
             }
         } catch (e) {
-            showToast('TX error: ' + e.message, true);
+            showToast(t('toast.tx_error') + ' ' + e.message, true);
         }
     } else {
-        addTerminalLine('system', 'TNC not connected. Packet logged only.');
+        addTerminalLine('system', t('toast.tnc_packet_logged'));
     }
 }
 
@@ -228,7 +228,7 @@ function escapeHTML(str) {
 
 function clearTerminal() {
     document.getElementById('terminal').innerHTML =
-        '<div class="line system"><span class="timestamp">[CLEAR]</span> Terminal cleared</div>';
+        '<div class="line system"><span class="timestamp">[CLEAR]</span> ' + t('terminal.cleared') + '</div>';
 }
 
 function handleClear() {
@@ -243,31 +243,31 @@ function handleClear() {
 function deleteChatCurrent() {
     var call = state.chatActive;
     if (!call) return;
-    if (!confirm('Delete conversation with ' + call + '?')) return;
+    if (!confirm(t('toast.conversation_delete') + ' ' + call + '?')) return;
     delete _chatMessages[call];
     state.chatList = state.chatList.filter(function(c) { return (c.baseCall || c.call) !== call; });
     state.chatActive = null;
     saveChatMessages();
     persistSettings();
     renderChatList();
-    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">Select a chat to start</div>';
+    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">' + t('chat.empty_state') + '</div>';
     document.getElementById('packetTarget').value = '';
     toggleModal('chatClearModal', false);
-    showToast('Conversation deleted');
+    showToast(t('toast.chat_deleted'));
 }
 
 function deleteAllChats() {
-    if (!confirm('Delete ALL conversations? This cannot be undone.')) return;
+    if (!confirm(t('toast.all_conversations_delete'))) return;
     _chatMessages = {};
     state.chatList = [];
     state.chatActive = null;
     saveChatMessages();
     persistSettings();
     renderChatList();
-    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">Select a chat to start</div>';
+    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">' + t('chat.empty_state') + '</div>';
     document.getElementById('packetTarget').value = '';
     toggleModal('chatClearModal', false);
-    showToast('All conversations deleted');
+    showToast(t('toast.all_chats_deleted'));
 }
 
 function showToast(message, isError) {
@@ -321,11 +321,11 @@ function onFreqOverrideSatChange() {
     var satId = sel.value;
     if (!satId) {
         inp.value = '';
-        def.textContent = 'Default: -- MHz';
+        def.textContent = t('label.default_freq') + ' -- MHz';
         return;
     }
     var sat = satelliteDB.find(function(s) { return s.id === satId; });
-    def.textContent = 'Default: ' + (sat ? sat.freq.toFixed(3) : '--') + ' MHz';
+    def.textContent = t('label.default_freq') + (sat ? sat.freq.toFixed(3) : '--') + ' MHz';
     inp.value = state.satFreqOverrides[satId] !== undefined ? state.satFreqOverrides[satId] : '';
 }
 
@@ -361,7 +361,7 @@ function resetFreqOverride() {
         updateDisplays();
     }
     onFreqOverrideSatChange();
-    showToast('Override reset for ' + satId);
+    showToast(t('toast.override_reset') + ' ' + satId);
 }
 
 function switchSettingsTab(tabName) {
@@ -371,6 +371,11 @@ function switchSettingsTab(tabName) {
     document.getElementById('tab-' + tabName).style.display = '';
     if (tabName === 'macros') renderMacroEditor();
     if (tabName === 'sat') { populateFreqOverrides(); renderSatListManage(); }
+    if (tabName === 'general') {
+        if (document.getElementById('setLang')) {
+            document.getElementById('setLang').value = state.lang || 'es';
+        }
+    }
 }
 
 document.getElementById('settingsModal').addEventListener('click', function(e) {
@@ -396,8 +401,8 @@ function tncConnect() {
     if (type === 'tcp') {
         host = document.getElementById('setTncHost').value.trim();
         port = document.getElementById('setTncPort').value.trim();
-        if (!host) { showToast('TCP host required', true); return; }
-        if (!port) { showToast('TCP port required', true); return; }
+        if (!host) { showToast(t('toast.tcp_host_required'), true); return; }
+        if (!port) { showToast(t('toast.tcp_port_required'), true); return; }
         port = parseInt(port);
     }
     
@@ -478,16 +483,16 @@ function tncConnect() {
             dbEl.style.color = db > -10 ? '#e74c3c' : db > -20 ? '#f0a030' : '#2ecc71';
             var statusEl = document.getElementById('inputLevelStatus');
             if (db > -3) {
-                statusEl.textContent = '⚠ Alto';
+                statusEl.textContent = '⚠ ' + t('status.high');
                 statusEl.style.color = '#e74c3c';
             } else if (db > -6) {
-                statusEl.textContent = '✓ Óptimo';
+                statusEl.textContent = '✓ ' + t('status.optimal');
                 statusEl.style.color = '#2ecc71';
             } else if (db > -15) {
-                statusEl.textContent = '∼ Aceptable';
+                statusEl.textContent = '∼ ' + t('status.acceptable');
                 statusEl.style.color = '#f0a030';
             } else {
-                statusEl.textContent = '▼ Bajo';
+                statusEl.textContent = '▼ ' + t('status.low');
                 statusEl.style.color = '#e74c3c';
             }
         } else if (resp.subcmd === 0x21) {
@@ -533,14 +538,14 @@ function requestHeardRender() {
 function clearHeardList() {
     state.heardStations = [];
     renderHeardList();
-    showToast('Heard stations cleared');
+    showToast(t('toast.heard_cleared'));
 }
 
 function renderHeardList() {
     const heard = document.getElementById('heardList');
     if (!heard) return;
     if (state.heardStations.length === 0) {
-        heard.innerHTML = '<div style="text-align:center;color:#555;padding:20px;font-size:0.85em;">No stations heard yet</div>';
+        heard.innerHTML = '<div style="text-align:center;color:#555;padding:20px;font-size:0.85em;">' + t('terminal.no_stations') + '</div>';
         if (typeof mapView !== 'undefined') mapView.updateHeard();
         return;
     }
@@ -590,13 +595,13 @@ function logQSO(satId, targetCall, targetGrid, rstSent, rstRcvd, status) {
     if (state.qsoLog.length > 200) state.qsoLog.length = 200;
     persistSettings();
     renderQSOs();
-    showToast('QSO logged: ' + qso.call + ' (' + qso.status + ')');
+    showToast(t('toast.qso_logged') + ' ' + qso.call + ' (' + qso.status + ')');
 }
 
 function renderQSOs() {
     const tbody = document.getElementById('qsoBody');
     if (state.qsoLog.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#555;padding:20px;">No QSOs yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#555;padding:20px;">' + t('terminal.no_qsos') + '</td></tr>';
         return;
     }
     const statusIcon = { confirmed: '🟢', sent: '🟡', heard: '⚪' };
@@ -611,16 +616,16 @@ function renderQSOs() {
 }
 
 function clearQSOLog() {
-    if (!confirm('Delete all QSO log entries? This cannot be undone.')) return;
+    if (!confirm(t('toast.qso_all_delete'))) return;
     state.qsoLog = [];
     persistSettings();
     renderQSOs();
-    showToast('QSO log cleared');
+    showToast(t('toast.qso_cleared'));
 }
 
 function exportQSOLog() {
     if (state.qsoLog.length === 0) {
-        showToast('No QSOs to export', true);
+        showToast(t('toast.no_qso_export'), true);
         return;
     }
     let adi = 'ADIF Export from OrbitAPRS\n<ADIF_VER:5>3.1.0\n<PROGRAMID:10>OrbitAPRS\n<EOH>\n';
@@ -656,7 +661,7 @@ function exportQSOLog() {
     a.download = 'orbitaprs_log_' + new Date().toISOString().slice(0, 10) + '.adi';
     a.click();
     URL.revokeObjectURL(url);
-    showToast('ADI log exported');
+    showToast(t('toast.qso_exported'));
 }
 
 function showQSOOnMap(qsoIdx) {
@@ -711,6 +716,11 @@ function switchTerminalTab(tab) {
     panel.classList.toggle('chat-active', tab === 'chat');
     var followBtn = document.getElementById('mapFollowBtn');
     followBtn.style.display = tab === 'map' ? '' : 'none';
+    var tileBtn = document.getElementById('mapTileToggle');
+    if (tileBtn) {
+        tileBtn.style.display = tab === 'map' ? '' : 'none';
+        if (tab === 'map' && typeof updateTileToggleBtn === 'function') updateTileToggleBtn();
+    }
     var clearBtn = document.getElementById('clearBtn');
     if (clearBtn) clearBtn.style.display = (tab === 'terminal' || tab === 'chat') ? '' : 'none';
     if (tab === 'nav' && typeof navView !== 'undefined') {
@@ -756,9 +766,9 @@ function updateDigipathOptions(isTerrestrial) {
 function sendFreeTextPacket() {
     const target = document.getElementById('packetTarget').value.trim().toUpperCase();
     const raw = document.getElementById('freeTextPacket').value.trim();
-    if (!target) { showToast('Enter a target callsign first', true); return; }
-    if (!raw) { showToast('Enter a message', true); return; }
-    if (state.myCall === 'N0CALL') { showToast('Set your callsign first', true); return; }
+    if (!target) { showToast(t('toast.enter_target'), true); return; }
+    if (!raw) { showToast(t('toast.enter_message'), true); return; }
+    if (state.myCall === 'N0CALL') { showToast(t('toast.set_callsign'), true); return; }
 
     const seq = String(state.msgIdCounter).padStart(2, '0');
     state.msgIdCounter = (state.msgIdCounter % 99) + 1;
@@ -783,10 +793,10 @@ function sendFreeTextPacket() {
             const ax25 = buildAX25Frame(packet);
             state.tnc.send(ax25);
         } catch (e) {
-            showToast('TX error: ' + e.message, true);
+            showToast(t('toast.tx_error') + ' ' + e.message, true);
         }
     } else {
-        addTerminalLine('system', 'TNC not connected. Packet logged only.');
+        addTerminalLine('system', t('toast.tnc_packet_logged'));
     }
     document.getElementById('freeTextPacket').value = '';
     // Chat: store sent messages
@@ -798,7 +808,7 @@ function sendFreeTextPacket() {
 // ── Tone calibration via KISS SetHardware ──
 function toggleCalTone() {
     if (!state.tnc || !state.tnc.connected) {
-        showToast('TNC not connected', true);
+        showToast(t('toast.tnc_not_connected'), true);
         document.getElementById('setToneEnable').checked = false;
         return;
     }
@@ -807,10 +817,10 @@ function toggleCalTone() {
         var freq = parseInt(document.getElementById('setToneFreq').value) || 1200;
         var subcmd = freq >= 2000 ? 0x08 : 0x07;
         state.tnc.sendCommand(0x06, new Uint8Array([subcmd]));
-        showToast('Cal tone: ' + freq + ' Hz');
+        showToast(t('toast.cal_tone') + ' ' + freq + ' Hz');
     } else {
         state.tnc.sendCommand(0x06, new Uint8Array([0x0A]));
-        showToast('Cal tone stopped');
+        showToast(t('toast.cal_tone_stopped'));
     }
 }
 
@@ -828,27 +838,29 @@ var _streamingLevel = false;
 
 function toggleAudioMonitor() {
     if (!state.tnc || !state.tnc.connected) {
-        showToast('TNC not connected', true);
+        showToast(t('toast.tnc_not_connected'), true);
         return;
     }
     var btn = document.getElementById('btnAudioMonitor');
     if (_streamingLevel) {
         state.tnc.sendCommand(0x06, new Uint8Array([0x04]));
         _streamingLevel = false;
-        btn.textContent = 'Iniciar monitoreo';
+        btn.setAttribute('data-i18n', 'btn.start_monitor');
+        btn.textContent = t('btn.start_monitor');
         document.getElementById('inputLevelBar').value = 0;
         document.getElementById('inputLevelDb').textContent = '-- dB';
     } else {
         state.tnc.sendCommand(0x06, new Uint8Array([0x05]));
         _streamingLevel = true;
-        btn.textContent = 'Detener monitoreo';
+        btn.setAttribute('data-i18n', 'btn.stop_monitor');
+        btn.textContent = t('btn.stop_monitor');
     }
 }
 
 // ── KISS apply from UI ──
 function applyKISSFromUI() {
     if (!state.tnc || !state.tnc.connected) {
-        showToast('TNC not connected', true);
+        showToast(t('toast.tnc_not_connected'), true);
         return;
     }
     var params = {
@@ -859,23 +871,23 @@ function applyKISSFromUI() {
     };
     try {
         state.tnc.applyKISSParams(params);
-        showToast('KISS params applied');
+        showToast(t('toast.kiss_applied'));
     } catch (e) {
-        showToast('Error: ' + e.message, true);
+        showToast(t('toast.error') + ' ' + e.message, true);
     }
 }
 
 // ── KISS read from TNC ──
 function readKISSFromTNC() {
     if (!state.tnc || !state.tnc.connected) {
-        showToast('TNC not connected', true);
+        showToast(t('toast.tnc_not_connected'), true);
         return;
     }
     state.tnc.sendCommand(0x06, new Uint8Array([0x21]));
     state.tnc.sendCommand(0x06, new Uint8Array([0x22]));
     state.tnc.sendCommand(0x06, new Uint8Array([0x23]));
     state.tnc.sendCommand(0x06, new Uint8Array([0x24]));
-    showToast('Reading KISS params from TNC...');
+    showToast(t('toast.kiss_reading'));
 }
 
 // ── Digipath custom ──
@@ -896,19 +908,19 @@ function updateAddDelBtn() {
     var cust = document.getElementById('setPathCustom').value.trim().toUpperCase();
     if (!cust) {
         btn.disabled = true;
-        btn.textContent = 'Add';
+        btn.textContent = t('btn.add');
         return;
     }
     if (ALL_STANDARD_PATHS.indexOf(cust) >= 0) {
         btn.disabled = true;
-        btn.textContent = 'Add';
+        btn.textContent = t('btn.add');
         return;
     }
     if (state.customPaths && state.customPaths.indexOf(cust) >= 0) {
-        btn.textContent = 'Del';
+        btn.textContent = t('btn.del');
         btn.disabled = false;
     } else {
-        btn.textContent = 'Add';
+        btn.textContent = t('btn.add');
         btn.disabled = false;
     }
 }
@@ -947,7 +959,7 @@ function updateTXGain() {
 
 function readTXGain() {
     if (!state.tnc || !state.tnc.connected) {
-        showToast('TNC not connected', true);
+        showToast(t('toast.tnc_not_connected'), true);
         return;
     }
     state.tnc.sendCommand(0x06, new Uint8Array([0x0C]));
@@ -956,11 +968,11 @@ function readTXGain() {
 // ── RX input auto-adjust ──
 function adjustInputLevels() {
     if (!state.tnc || !state.tnc.connected) {
-        showToast('TNC not connected', true);
+        showToast(t('toast.tnc_not_connected'), true);
         return;
     }
     state.tnc.sendCommand(0x06, new Uint8Array([0x2B]));
-    showToast('Auto-adjusting RX levels...');
+    showToast(t('toast.rx_adjusting'));
 }
 
 // ── Chat ──
@@ -1074,7 +1086,7 @@ function renderChatList() {
     var el = document.getElementById('chatList');
     if (!el) return;
     if (!state.chatList.length) {
-        el.innerHTML = '<div style="padding:10px;color:#444;font-size:0.75em;text-align:center;">No chats yet</div>';
+        el.innerHTML = '<div style="padding:10px;color:#444;font-size:0.75em;text-align:center;">' + t('chat.no_chats') + '</div>';
         return;
     }
     el.innerHTML = state.chatList.map(function(c) {
@@ -1098,7 +1110,7 @@ function renderChatMessages(call) {
     if (!el) return;
     var msgs = _chatMessages[call];
     if (!msgs || !msgs.length) {
-        el.innerHTML = '<div class="chat-empty">No messages yet</div>';
+        el.innerHTML = '<div class="chat-empty">' + t('chat.no_messages') + '</div>';
         return;
     }
     el.innerHTML = msgs.map(function(m) {
@@ -1122,7 +1134,7 @@ function saveBeaconConfig() {
     persistSettings();
     toggleModal('beaconModal', false);
     updateBeaconState();
-    showToast('Beacon config saved');
+    showToast(t('toast.beacon_saved'));
 }
 
 function updateBeaconState() {
@@ -1176,7 +1188,7 @@ function sendBeaconPacket() {
             var ax25 = buildAX25Frame(packet);
             state.tnc.send(ax25);
         } catch (e) {
-            showToast('Beacon TX error: ' + e.message, true);
+            showToast(t('toast.beacon_tx_error') + ' ' + e.message, true);
         }
     }
 }
@@ -1188,5 +1200,5 @@ function sendToSW(msg) {
 
 function clearTileCache() {
     sendToSW({ type: 'CLEAR_TILE_CACHE' });
-    showToast('Tile cache cleared');
+    showToast(t('toast.tile_cache_cleared'));
 }

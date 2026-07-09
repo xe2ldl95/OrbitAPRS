@@ -166,7 +166,7 @@ function refreshSatPasses() {
             if (selSat.type === 'terrestrial') {
                 const dot = document.getElementById('satStatusDot');
                 dot.className = 'status-dot active';
-                document.getElementById('satNameDisplay').textContent = 'TERRESTRIAL';
+                document.getElementById('satNameDisplay').textContent = t('label.terrestrial');
                 return;
             }
             const info = estimateNextPass(selSat, getJulianDate(new Date()),
@@ -288,7 +288,7 @@ async function fetchTLEUpdate() {
         'https://celestrak.org/NORAD/elements/gp.php?GROUP=amateur&FORMAT=tle&BORDER=',
         'https://amsat.org/tle/bulletin.dat',
     ];
-    showToast('Fetching TLE data...');
+    showToast(t('toast.tle_fetching'));
     for (const url of urls) {
         try {
             const resp = await fetch(url, {
@@ -332,12 +332,12 @@ async function fetchTLEUpdate() {
             persistSettings();
             saveTLECache();
             refreshSatPasses();
-            showToast('TLE updated for ' + updated + ' satellites');
+            showToast(t('toast.tle_updated') + ' ' + updated + ' ' + t('toast.satellites'));
             renderSatModal();
             return;
         } catch (err) { continue; }
     }
-    showToast('TLE update failed — using cached data', true);
+            showToast(t('toast.tle_failed'), true);
 }
 
 function renderSatModal() {
@@ -347,8 +347,8 @@ function renderSatModal() {
     const tleStatus = document.getElementById('tleStatus');
     if (tleStatus) {
         tleStatus.textContent = state.lastTLEUpdate
-            ? 'TLE: last updated ' + state.lastTLEUpdate
-            : 'TLE: using embedded data (not updated yet)';
+            ? t('tle.updated') + state.lastTLEUpdate
+            : t('tle.embedded');
     }
     container.innerHTML = '';
     satelliteDB.forEach(sat => {

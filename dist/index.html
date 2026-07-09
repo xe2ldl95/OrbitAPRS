@@ -15,7 +15,7 @@
 <body>
 
     <div class="header">
-        <div class="logo" title="Settings (Ctrl+,)">
+        <div class="logo" data-i18n-title="header.settings_title">
             <img src="icons/icon-192.png" class="logo-icon" alt="OrbitAPRS">
             <div class="logo-text">
                 <span class="logo-title">OrbitAPRS</span>
@@ -28,15 +28,15 @@
             <span id="utcDoppler"></span>
         </div>
         <div class="status-indicators">
-            <span style="font-size:0.8em;color:#888;">TNC:</span>
+            <span style="font-size:0.8em;color:#888;" data-i18n="header.tnc">TNC:</span>
             <span class="status-dot idle" id="tncStatusDot"></span>
-            <span class="sat-selector" onclick="toggleModal('satModal',true)" title="Select satellite">
-                <span style="font-size:0.8em;color:#888;">Sat:</span>
+            <span class="sat-selector" onclick="toggleModal('satModal',true)" data-i18n-title="header.select_sat">
+                <span style="font-size:0.8em;color:#888;" data-i18n="header.sat">Sat:</span>
                 <span class="status-dot idle" id="satStatusDot"></span>
                 <b id="satNameDisplay">ISS</b>
             </span>
-            <span class="beacon-indicator" id="beaconIndicator" onclick="toggleModal('beaconModal',true)" title="Beacon configuration (terrestrial only)">
-                <span style="font-size:0.8em;color:#888;">BCN:</span>
+            <span class="beacon-indicator" id="beaconIndicator" onclick="toggleModal('beaconModal',true)" data-i18n-title="header.beacon_title">
+                <span style="font-size:0.8em;color:#888;" data-i18n="header.bcn">BCN:</span>
                 <span class="status-dot idle" id="beaconStatusDot"></span>
             </span>
             <button class="btn btn-sm btn-outline" style="margin-left:auto;" onclick="toggleModal('settingsModal',true);requestCompassPermission()">⚙️</button>
@@ -48,13 +48,14 @@
             <div class="panel terminal-panel">
                 <div class="panel-header"><span class="dot"></span>
                     <div class="panel-tabs">
-                        <button class="panel-tab active" data-tab="terminal" onclick="switchTerminalTab('terminal')">Terminal</button>
-                        <button class="panel-tab map-tab" data-tab="map" onclick="switchTerminalTab('map')">Map</button>
-                        <button class="panel-tab" data-tab="nav" onclick="switchTerminalTab('nav')">Nav</button>
-                        <button class="panel-tab" data-tab="chat" onclick="switchTerminalTab('chat');renderChatView()">Chat</button>
+                        <button class="panel-tab active" data-tab="terminal" onclick="switchTerminalTab('terminal')" data-i18n="tabs.terminal">Terminal</button>
+                        <button class="panel-tab map-tab" data-tab="map" onclick="switchTerminalTab('map')" data-i18n="tabs.map">Map</button>
+                        <button class="panel-tab" data-tab="nav" onclick="switchTerminalTab('nav')" data-i18n="tabs.nav">Nav</button>
+                        <button class="panel-tab" data-tab="chat" onclick="switchTerminalTab('chat');renderChatView()" data-i18n="tabs.chat">Chat</button>
                     </div>
-                    <button class="btn btn-sm map-follow-btn" id="mapFollowBtn" style="display:none;" onclick="toggleMapFollow()" title="Toggle follow satellite">◎ Dynamic</button>
-                    <button class="btn btn-sm btn-outline" id="clearBtn" style="margin-left:auto;color:#e74c3c;border-color:#e74c3c;" onclick="handleClear()">Clear</button>
+                    <button class="btn btn-sm map-follow-btn" id="mapFollowBtn" style="display:none;" onclick="toggleMapFollow()" data-i18n-title="tabs.follow_toggle">◎ Dynamic</button>
+                    <button class="btn btn-sm btn-outline" id="mapTileToggle" style="display:none;margin-left:6px;" onclick="toggleMapTile()">☀️ Light</button>
+                    <button class="btn btn-sm btn-outline" id="clearBtn" style="margin-left:auto;color:#e74c3c;border-color:#e74c3c;" onclick="handleClear()" data-i18n="btn.clear">Clear</button>
                 </div>
                 <div class="terminal" id="terminal">
                     <div class="line system"><span class="timestamp">[READY]</span> Terminal ready.</div>
@@ -65,36 +66,36 @@
                     <div class="chat-layout">
                         <div class="chat-messages" id="chatMessages"></div>
                         <div class="chat-sidebar" id="chatSidebar">
-                            <div class="chat-sidebar-header">Chats</div>
+                            <div class="chat-sidebar-header" data-i18n="panel.chat_header">Chats</div>
                             <div class="chat-list" id="chatList"></div>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="panel input-panel">
-                <div class="panel-header"><span class="dot" style="background:#3b9fd4;"></span> Packet Builder
+                <div class="panel-header"><span class="dot" style="background:#3b9fd4;"></span> <span data-i18n="panel.packet_builder">Packet Builder</span>
                     <span style="margin-left:auto;font-weight:400;font-size:0.7em;color:#666;text-transform:none;letter-spacing:normal;display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
-                        <span>TX: <b id="txFreqDisplay">145.825 MHz</b></span>
+                        <span><span data-i18n="pkt.tx">TX:</span> <b id="txFreqDisplay">145.825 MHz</b></span>
                         <span>|</span>
-                        <span>Path: <b id="pathDisplay">ARISS</b></span>
+                        <span><span data-i18n="pkt.path">Path:</span> <b id="pathDisplay">ARISS</b></span>
                         <span>|</span>
-                        <span>Tocall: <b id="tocallDisplay">APZ100</b></span>
+                        <span><span data-i18n="pkt.tocall">Tocall:</span> <b id="tocallDisplay">APZ100</b></span>
                         <span>|</span>
-                        <span>Callsign: <b id="myCallDisplay">N0CALL</b></span>
+                        <span><span data-i18n="pkt.callsign">Callsign:</span> <b id="myCallDisplay">N0CALL</b></span>
                         <span>|</span>
-                        <span>Grid: <b id="myGridDisplay">--</b></span>
+                        <span><span data-i18n="pkt.grid">Grid:</span> <b id="myGridDisplay">--</b></span>
                     </span>
                 </div>
                 <div class="panel-body">
                     <div class="input-area">
                         <div class="input-row" style="display:flex;align-items:center;gap:4px;">
                             <div id="quickActions" style="display:flex;align-items:center;gap:4px;"></div>
-                            <input type="text" id="packetTarget" placeholder="Target..." style="flex:1;min-width:80px;margin-left:auto;">
-                            <button class="btn btn-primary" onclick="buildAndSendPacket()" style="white-space:nowrap;">⚡ TX</button>
+                            <input type="text" id="packetTarget" data-i18n-placeholder="pkt.target_placeholder" placeholder="Target..." style="flex:1;min-width:80px;margin-left:auto;">
+                            <button class="btn btn-primary" onclick="buildAndSendPacket()" style="white-space:nowrap;">⚡ <span data-i18n="pkt.tx_btn">TX</span></button>
                         </div>
                         <div id="freeTextInput" class="input-row" style="margin-top:6px;">
-                            <input type="text" id="freeTextPacket" placeholder="Mensaje directo..." style="flex:1;">
-                            <button class="btn btn-primary" onclick="sendFreeTextPacket()" style="white-space:nowrap;">📨 Enviar</button>
+                            <input type="text" id="freeTextPacket" data-i18n-placeholder="pkt.message_placeholder" placeholder="Mensaje directo..." style="flex:1;">
+                            <button class="btn btn-primary" onclick="sendFreeTextPacket()" style="white-space:nowrap;">📨 <span data-i18n="pkt.send">Enviar</span></button>
                         </div>
                     </div>
                 </div>
@@ -103,15 +104,15 @@
 
         <div class="right-column">
             <div class="panel heard-panel">
-                <div class="panel-header"><span class="dot" style="background:#3498db;"></span> Heard Stations<button class="btn btn-sm btn-outline" onclick="clearHeardList()" style="margin-left:auto;color:#e74c3c;border-color:#e74c3c;">Clear</button></div>
+                <div class="panel-header"><span class="dot" style="background:#3498db;"></span> <span data-i18n="panel.heard_stations">Heard Stations</span><button class="btn btn-sm btn-outline" onclick="clearHeardList()" style="margin-left:auto;color:#e74c3c;border-color:#e74c3c;" data-i18n="btn.clear">Clear</button></div>
                 <div class="panel-body no-padding" id="heardList"></div>
             </div>
             <div class="panel qso-panel">
-                <div class="panel-header"><span class="dot" style="background:#2ecc71;"></span> QSO Log
-                    <button class="btn btn-sm btn-outline" id="mapModeToggle" onclick="toggleMapMode()" style="margin-left:auto;">Sat</button>
-                    <button class="btn btn-sm btn-outline" id="qsoViewToggle" onclick="toggleQSOView()">One</button>
-                    <button class="btn btn-sm btn-outline" onclick="exportQSOLog()">Adi</button>
-                    <button class="btn btn-sm btn-outline" onclick="clearQSOLog()" style="color:#e74c3c;border-color:#e74c3c;">Erase</button>
+                <div class="panel-header"><span class="dot" style="background:#2ecc71;"></span> <span data-i18n="panel.qso_log">QSO Log</span>
+                    <button class="btn btn-sm btn-outline" id="mapModeToggle" onclick="toggleMapMode()" style="margin-left:auto;" data-i18n="btn.sat_mode">Sat</button>
+                    <button class="btn btn-sm btn-outline" id="qsoViewToggle" onclick="toggleQSOView()" data-i18n="btn.one_view">One</button>
+                    <button class="btn btn-sm btn-outline" onclick="exportQSOLog()" data-i18n="btn.export_adi">Adi</button>
+                    <button class="btn btn-sm btn-outline" onclick="clearQSOLog()" style="color:#e74c3c;border-color:#e74c3c;" data-i18n="btn.erase_log">Erase</button>
                 </div>
                 <div class="panel-body no-padding">
                     <table class="qso-table" id="qsoTable">
@@ -125,181 +126,188 @@
 
     <div class="modal-overlay" id="satModal">
         <div class="modal">
-            <h3>🛰️ Select Satellite</h3>
+            <h3 data-i18n="modal.select_sat">🛰️ Select Satellite</h3>
             <div style="font-size:0.8em;color:#888;margin-bottom:8px;" id="tleStatus">TLE: --</div>
             <div id="satModalList"></div>
             <div class="btn-row" style="margin-top:12px;">
-                <button class="btn btn-outline" onclick="refreshSatPasses();renderSatModal()">🔄 Refresh</button>
-                <button class="btn btn-outline" onclick="fetchTLEUpdate()">📡 Update TLE</button>
-                <button class="btn btn-primary" onclick="toggleModal('satModal',false)">Close</button>
+                <button class="btn btn-outline" onclick="refreshSatPasses();renderSatModal()" data-i18n="btn.refresh">🔄 Refresh</button>
+                <button class="btn btn-outline" onclick="fetchTLEUpdate()" data-i18n="btn.update_tle">📡 Update TLE</button>
+                <button class="btn btn-primary" onclick="toggleModal('satModal',false)" data-i18n="btn.close">Close</button>
             </div>
         </div>
     </div>
 
     <div class="modal-overlay" id="chatClearModal">
         <div class="modal" style="max-width:400px;height:auto;padding:24px;">
-            <h3>Clear Chat</h3>
-            <p style="color:#888;font-size:0.85em;margin-bottom:16px;">Choose an option:</p>
+            <h3 data-i18n="modal.clear_chat">Clear Chat</h3>
+            <p style="color:#888;font-size:0.85em;margin-bottom:16px;" data-i18n="modal.clear_chat_opts">Choose an option:</p>
             <div class="btn-row" style="flex-direction:column;">
-                <button class="btn btn-danger" onclick="deleteChatCurrent()" style="width:100%;text-align:center;">Delete this conversation</button>
-                <button class="btn btn-outline" style="width:100%;text-align:center;border-color:#e74c3c;color:#e74c3c;" onclick="deleteAllChats()">Delete all conversations</button>
-                <button class="btn btn-outline" onclick="toggleModal('chatClearModal',false)" style="width:100%;text-align:center;">Cancel</button>
+                <button class="btn btn-danger" onclick="deleteChatCurrent()" style="width:100%;text-align:center;" data-i18n="btn.delete_chat">Delete this conversation</button>
+                <button class="btn btn-outline" style="width:100%;text-align:center;border-color:#e74c3c;color:#e74c3c;" onclick="deleteAllChats()" data-i18n="btn.delete_all_chats">Delete all conversations</button>
+                <button class="btn btn-outline" onclick="toggleModal('chatClearModal',false)" style="width:100%;text-align:center;" data-i18n="btn.cancel">Cancel</button>
             </div>
         </div>
     </div>
 
     <div class="modal-overlay" id="settingsModal">
         <div class="modal">
-            <h3>⚙️ Settings</h3>
+            <h3 data-i18n="settings.title">⚙️ Settings</h3>
             <div class="settings-tabs" id="settingsTabs">
-                <button class="tab-btn active" data-tab="station" onclick="switchSettingsTab('station')">Station</button>
-                <button class="tab-btn" data-tab="modem" onclick="switchSettingsTab('modem')">Modem</button>
-                <button class="tab-btn" data-tab="sat" onclick="switchSettingsTab('sat')">Sat</button>
-                <button class="tab-btn" data-tab="macros" onclick="switchSettingsTab('macros')">Macros</button>
-                <button class="tab-btn" data-tab="logging" onclick="switchSettingsTab('logging')">Logging</button>
-                <button class="tab-btn" data-tab="calibration" onclick="switchSettingsTab('calibration')">Calibration</button>
-                <button class="tab-btn" data-tab="map" onclick="switchSettingsTab('map')">Map</button>
-                <button class="tab-btn" data-tab="terminal" onclick="switchSettingsTab('terminal')">Terminal</button>
-                <button class="tab-btn" data-tab="tnc" onclick="switchSettingsTab('tnc')">TNC</button>
-                <button class="tab-btn" data-tab="licenses" onclick="switchSettingsTab('licenses')">Licenses</button>
+                <button class="tab-btn active" data-tab="station" onclick="switchSettingsTab('station')" data-i18n="tab.station">Station</button>
+                <button class="tab-btn" data-tab="modem" onclick="switchSettingsTab('modem')" data-i18n="tab.modem">Modem</button>
+                <button class="tab-btn" data-tab="general" onclick="switchSettingsTab('general')" data-i18n="tab.general">General</button>
+                <button class="tab-btn" data-tab="sat" onclick="switchSettingsTab('sat')" data-i18n="tab.sat">Sat</button>
+                <button class="tab-btn" data-tab="macros" onclick="switchSettingsTab('macros')" data-i18n="tab.macros">Macros</button>
+                <button class="tab-btn" data-tab="logging" onclick="switchSettingsTab('logging')" data-i18n="tab.logging">Logging</button>
+                <button class="tab-btn" data-tab="map" onclick="switchSettingsTab('map')" data-i18n="tab.map">Map</button>
+                <button class="tab-btn" data-tab="terminal" onclick="switchSettingsTab('terminal')" data-i18n="tab.terminal">Terminal</button>
+                <button class="tab-btn" data-tab="tnc" onclick="switchSettingsTab('tnc')" data-i18n="tab.tnc">TNC</button>
+                <button class="tab-btn" data-tab="licenses" onclick="switchSettingsTab('licenses')" data-i18n="tab.licenses">Licenses</button>
             </div>
 
             <div class="tab-content" id="tab-station">
-                <div class="form-group"><label>Callsign (SSID opcional, ej: N0CALL-7)</label><input type="text" id="setCall" value="N0CALL" maxlength="10"></div>
-                <div class="form-group"><label>Grid Square</label><input type="text" id="setGrid" value="FN42" maxlength="6" style="text-transform:uppercase;"></div>
-                <div class="form-group"><label>Default RST</label><select id="setRstDefault"><option value="59">59 (Standard)</option><option value="55">55</option><option value="52">52</option><option value="33">33 (Weak)</option></select></div>
-                <div class="form-group"><label id="labelTocallMsg">Tocall messages</label><input type="text" id="setTocallMsg" value="CQ" maxlength="9" style="text-transform:uppercase;" placeholder="CQ"></div>
-                <div class="form-group"><label id="labelTocallPos">Tocall position</label><input type="text" id="setTocallPos" value="APRS" maxlength="9" style="text-transform:uppercase;" placeholder="APRS"></div>
-                <div class="form-group"><label>Latitude</label><input type="number" id="setLat" value="42.0" step="0.0001" min="-90" max="90" oninput="updateGridFromCoords()"></div>
-                <div class="form-group"><label>Longitude</label><input type="number" id="setLon" value="-71.0" step="0.0001" min="-180" max="180" oninput="updateGridFromCoords()"></div>
-                <button class="btn btn-outline" onclick="useGPSSettings()">📍 Use My Location</button>
+                <div class="form-group"><label data-i18n="label.callsign">Callsign (SSID opcional, ej: N0CALL-7)</label><input type="text" id="setCall" value="N0CALL" maxlength="10"></div>
+                <div class="form-group"><label data-i18n="label.grid">Grid Square</label><input type="text" id="setGrid" value="FN42" maxlength="6" style="text-transform:uppercase;"></div>
+                <div class="form-group"><label data-i18n="label.rst_default">Default RST</label><select id="setRstDefault"><option value="59" data-i18n="label.rst_59">59 (Standard)</option><option value="55" data-i18n="label.rst_55">55</option><option value="52" data-i18n="label.rst_52">52</option><option value="33" data-i18n="label.rst_33">33 (Weak)</option></select></div>
+                <div class="form-group"><label id="labelTocallMsg" data-i18n="label.tocall_msg">Tocall messages</label><input type="text" id="setTocallMsg" value="CQ" maxlength="9" style="text-transform:uppercase;" placeholder="CQ"></div>
+                <div class="form-group"><label id="labelTocallPos" data-i18n="label.tocall_pos">Tocall position</label><input type="text" id="setTocallPos" value="APRS" maxlength="9" style="text-transform:uppercase;" placeholder="APRS"></div>
+                <div class="form-group"><label data-i18n="label.latitude">Latitude</label><input type="number" id="setLat" value="42.0" step="0.0001" min="-90" max="90" oninput="updateGridFromCoords()"></div>
+                <div class="form-group"><label data-i18n="label.longitude">Longitude</label><input type="number" id="setLon" value="-71.0" step="0.0001" min="-180" max="180" oninput="updateGridFromCoords()"></div>
+                <button class="btn btn-outline" onclick="useGPSSettings()" data-i18n="btn.use_location">📍 Use My Location</button>
             </div>
 
             <div class="tab-content" id="tab-modem" style="display:none;">
-                <div class="form-group"><label>TNC Type</label><select id="setTncType"><option value="serial">Serial (KISS) — USB &amp; Bluetooth SPP</option><option value="bluetooth">Bluetooth LE (BLE KISS)</option><option value="webusb">USB (WebUSB — CH340)</option><option value="tcp">TCP (KISS)</option></select></div>
-                <div class="form-group tcp-host-port" style="display:none;"><label>TCP Host</label><input type="text" id="setTncHost" placeholder="localhost" style="width:100%;"></div>
-                <div class="form-group tcp-host-port" style="display:none;"><label>TCP Port</label><input type="number" id="setTncPort" placeholder="8080" style="width:100%;"></div>
-                <div class="form-group"><label>Baud Rate</label><select id="setTncBaud"><option>9600</option><option>19200</option><option>38400</option><option selected>57600</option><option>115200</option></select></div>
+                <div class="form-group"><label data-i18n="label.tnc_type">TNC Type</label><select id="setTncType"><option value="serial" data-i18n="label.tnc_serial">Serial (KISS) — USB &amp; Bluetooth SPP</option><option value="bluetooth" data-i18n="label.tnc_ble">Bluetooth LE (BLE KISS)</option><option value="webusb" data-i18n="label.tnc_usb">USB (WebUSB — CH340)</option><option value="tcp" data-i18n="label.tnc_tcp">TCP (KISS)</option></select></div>
+                <div class="form-group tcp-host-port" style="display:none;"><label data-i18n="label.tcp_host">TCP Host</label><input type="text" id="setTncHost" data-i18n-placeholder="label.tcp_host_placeholder" placeholder="localhost" style="width:100%;"></div>
+                <div class="form-group tcp-host-port" style="display:none;"><label data-i18n="label.tcp_port">TCP Port</label><input type="number" id="setTncPort" data-i18n-placeholder="label.tcp_port_placeholder" placeholder="8080" style="width:100%;"></div>
+                <div class="form-group"><label data-i18n="label.baud">Baud Rate</label><select id="setTncBaud"><option>9600</option><option>19200</option><option>38400</option><option selected>57600</option><option>115200</option></select></div>
                 <div class="btn-row" style="justify-content:flex-start;">
-                    <button class="btn btn-primary" onclick="tncConnect()">🔌 Connect</button>
-                    <button class="btn btn-danger" onclick="tncDisconnect()">⛔ Disconnect</button>
+                    <button class="btn btn-primary" onclick="tncConnect()" data-i18n="btn.connect">🔌 Connect</button>
+                    <button class="btn btn-danger" onclick="tncDisconnect()" data-i18n="btn.disconnect">⛔ Disconnect</button>
                 </div>
-                <div style="margin-top:8px;font-size:0.8em;color:#888;" id="tncStatusText">TNC: Disconnected</div>
+                <div style="margin-top:8px;font-size:0.8em;color:#888;" id="tncStatusText" data-i18n="label.tnc_status">TNC: Disconnected</div>
             </div>
 
             <div class="tab-content" id="tab-sat" style="display:none;">
-                <div class="form-group"><label>Digipath</label><select id="setPath" onchange="onDigipathChange()"><option>ARISS</option><option>WIDE1-1,WIDE2-1</option><option>WIDE1-1</option><option>WIDE2-2</option><option>DIRECT</option></select><div style="display:flex;gap:4px;margin-top:4px;"><input type="text" id="setPathCustom" style="flex:1;" placeholder="Nuevo path personalizado..." maxlength="50" oninput="onDigipathCustomInput()"><button id="btnAddDelPath" class="btn btn-sm btn-outline" onclick="onAddDelPath()" disabled>Add</button></div></div>
+                <div class="form-group"><label data-i18n="label.digipath">Digipath</label><select id="setPath" onchange="onDigipathChange()"><option>ARISS</option><option>WIDE1-1,WIDE2-1</option><option>WIDE1-1</option><option>WIDE2-2</option><option>DIRECT</option></select><div style="display:flex;gap:4px;margin-top:4px;"><input type="text" id="setPathCustom" style="flex:1;" data-i18n-placeholder="label.digipath_placeholder" placeholder="Nuevo path personalizado..." maxlength="50" oninput="onDigipathCustomInput()"><button id="btnAddDelPath" class="btn btn-sm btn-outline" onclick="onAddDelPath()" disabled data-i18n="btn.add">Add</button></div></div>
                 <div class="form-group" style="border-top:1px solid var(--border);padding-top:12px;margin-top:16px;">
-                    <label style="font-weight:600;color:var(--text-bright);">Satellite Freq Override</label>
+                    <label style="font-weight:600;color:var(--text-bright);" data-i18n="label.freq_override">Satellite Freq Override</label>
                     <div style="display:flex;gap:4px;margin-top:4px;">
                         <select id="setFreqOverrideSat" onchange="onFreqOverrideSatChange()" style="flex:1;background:#1a1f2a;border:1px solid var(--border);color:var(--text-bright);padding:8px 12px;border-radius:var(--radius-sm);font-size:0.9em;outline:none;"></select>
                         <input type="number" id="setFreqOverrideVal" step="0.001" min="144" max="148" placeholder="MHz" oninput="onFreqOverrideValChange()" style="width:100px;background:#1a1f2a;border:1px solid var(--border);color:var(--text-bright);padding:8px 12px;border-radius:var(--radius-sm);font-size:0.9em;outline:none;">
-                        <button class="btn btn-sm btn-outline" onclick="resetFreqOverride()" title="Reset to default">↺</button>
+                        <button class="btn btn-sm btn-outline" onclick="resetFreqOverride()" data-i18n-title="label.reset_default">↺</button>
                     </div>
-                    <div id="freqOverrideDefault" style="font-size:0.8em;color:#666;margin-top:2px;">Default: -- MHz</div>
+                    <div id="freqOverrideDefault" style="font-size:0.8em;color:#666;margin-top:2px;" data-i18n="label.default">Default: -- MHz</div>
                 </div>
                 <div class="btn-row" style="justify-content:flex-start;margin-top:12px;">
-                    <button class="btn btn-outline" onclick="fetchTLEUpdate()">📡 Update TLE</button>
+                    <button class="btn btn-outline" onclick="fetchTLEUpdate()" data-i18n="btn.update_tle">📡 Update TLE</button>
                 </div>
                 <div class="form-group" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
-                    <label>Add Satellite (NORAD ID)</label>
+                    <label data-i18n="label.add_sat">Add Satellite (NORAD ID)</label>
                     <div style="display:flex;gap:4px;">
-                        <input type="text" id="setNoradId" placeholder="Enter NORAD ID or name..." style="flex:1;" list="noradSuggestions" oninput="onNoradInput()">
+                        <input type="text" id="setNoradId" data-i18n-placeholder="label.norad_placeholder" placeholder="Enter NORAD ID or name..." style="flex:1;" list="noradSuggestions" oninput="onNoradInput()">
                         <datalist id="noradSuggestions"></datalist>
-                        <button class="btn btn-outline" onclick="addSatelliteByNorad()">➕ Add</button>
+                        <button class="btn btn-outline" onclick="addSatelliteByNorad()" data-i18n="btn.add">➕ Add</button>
                     </div>
                 </div>
                 <div class="form-group">
-                    <label>Satellite List</label>
+                    <label data-i18n="label.sat_list">Satellite List</label>
                     <div id="satListManage" style="max-height:150px;overflow-y:auto;background:#1a1f2a;border:1px solid var(--border);border-radius:var(--radius-sm);padding:4px;"></div>
                 </div>
             </div>
 
             <div class="tab-content" id="tab-macros" style="display:none;">
-                <p style="color:#888;font-size:0.82em;margin-bottom:6px;"><code style="color:var(--accent2);">%C</code> <span style="color:#555;">target con SSID</span> &nbsp; <code style="color:var(--accent2);">%c</code> <span style="color:#555;">target sin SSID</span> &nbsp; <code style="color:var(--accent2);">%M</code> <span style="color:#555;">mi callsign</span> &nbsp; <code style="color:var(--accent2);">%G</code> <span style="color:#555;">mi grid</span> &nbsp; <code style="color:var(--accent2);">%R</code> <span style="color:#555;">grid remoto</span> &nbsp; <code style="color:var(--accent2);">%S</code> <span style="color:#555;">satélite</span> &nbsp; <code style="color:var(--accent2);">%N</code> <span style="color:#555;">nro. secuencia</span> &nbsp; <code style="color:var(--accent2);">%T</code> <span style="color:#555;">tabla símbolo</span> &nbsp; <code style="color:var(--accent2);">%Y</code> <span style="color:#555;">símbolo APRS</span></p>
+                <p style="color:#888;font-size:0.82em;margin-bottom:6px;"><code style="color:var(--accent2);">%C</code> <span style="color:#555;" data-i18n="macro.help_c">target con SSID</span> &nbsp; <code style="color:var(--accent2);">%c</code> <span style="color:#555;" data-i18n="macro.help_c_lower">target sin SSID</span> &nbsp; <code style="color:var(--accent2);">%M</code> <span style="color:#555;" data-i18n="macro.help_m">mi callsign</span> &nbsp; <code style="color:var(--accent2);">%G</code> <span style="color:#555;" data-i18n="macro.help_g">mi grid</span> &nbsp; <code style="color:var(--accent2);">%R</code> <span style="color:#555;" data-i18n="macro.help_r">grid remoto</span> &nbsp; <code style="color:var(--accent2);">%S</code> <span style="color:#555;" data-i18n="macro.help_s">satélite</span> &nbsp; <code style="color:var(--accent2);">%N</code> <span style="color:#555;" data-i18n="macro.help_n">nro. secuencia</span> &nbsp; <code style="color:var(--accent2);">%T</code> <span style="color:#555;" data-i18n="macro.help_t">tabla símbolo</span> &nbsp; <code style="color:var(--accent2);">%Y</code> <span style="color:#555;" data-i18n="macro.help_y">símbolo APRS</span></p>
                 <div id="macroEditor"></div>
                 <div style="margin-top:6px;">
-                    <button class="btn btn-outline" onclick="addMacro()" style="font-size:0.85em;">➕ Add Macro</button>
-                    <button class="btn btn-outline" onclick="resetMacros()" style="font-size:0.85em;margin-left:4px;">↺ Reset Defaults</button>
+                    <button class="btn btn-outline" onclick="addMacro()" style="font-size:0.85em;" data-i18n="btn.add_macro">➕ Add Macro</button>
+                    <button class="btn btn-outline" onclick="resetMacros()" style="font-size:0.85em;margin-left:4px;" data-i18n="btn.reset_macros">↺ Reset Defaults</button>
                 </div>
             </div>
 
             <div class="tab-content" id="tab-logging" style="display:none;">
-                <div class="form-group"><label>Terminal History</label><select id="setLogLines"><option value="100">100 lines</option><option value="300" selected>300 lines</option><option value="500">500 lines</option></select></div>
-                <div class="form-group"><label>Auto-log QSOs from RX</label><select id="setAutoQSO"><option value="1">Enabled</option><option value="0">Disabled</option></select></div>
-                <div class="form-group"><label>Heard Stations Limit</label><select id="setHeardLimit"><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option><option value="150">150</option><option value="200">200</option><option value="500">500</option></select></div>
+                <div class="form-group"><label data-i18n="label.terminal_history">Terminal History</label><select id="setLogLines"><option value="100" data-i18n="label.lines_100">100 lines</option><option value="300" selected data-i18n="label.lines_300">300 lines</option><option value="500" data-i18n="label.lines_500">500 lines</option></select></div>
+                <div class="form-group"><label data-i18n="label.auto_qso">Auto-log QSOs from RX</label><select id="setAutoQSO"><option value="1" data-i18n="label.enabled">Enabled</option><option value="0" data-i18n="label.disabled">Disabled</option></select></div>
+                <div class="form-group"><label data-i18n="label.heard_limit">Heard Stations Limit</label><select id="setHeardLimit"><option value="10">10</option><option value="20" selected>20</option><option value="50">50</option><option value="100">100</option><option value="150">150</option><option value="200">200</option><option value="500">500</option></select></div>
                 <div class="btn-row" style="justify-content:flex-start;">
-                    <button class="btn btn-outline" style="color:#e74c3c;border-color:#e74c3c;" onclick="clearTerminal()">🧹 Clear Terminal</button>
-                    <button class="btn btn-outline" onclick="exportQSOLog()">📥 Export QSO Log</button>
+                    <button class="btn btn-outline" style="color:#e74c3c;border-color:#e74c3c;" onclick="clearTerminal()" data-i18n="btn.clear_terminal">🧹 Clear Terminal</button>
+                    <button class="btn btn-outline" onclick="exportQSOLog()" data-i18n="btn.export_qso">📥 Export QSO Log</button>
                 </div>
             </div>
 
-            <div class="tab-content" id="tab-calibration" style="display:none;">
-                <div class="form-group"><label>Elevation offset (beta when phone flat) <span id="betaRawDisplay" style="color:#f0a030;font-weight:400;"></span></label><input type="number" id="setElevationOffset" value="0" step="0.1"></div>
+            <div class="tab-content" id="tab-general" style="display:none;">
+                <div class="form-group"><label data-i18n="label.elevation_offset">Elevation offset (beta when phone flat) <span id="betaRawDisplay" style="color:#f0a030;font-weight:400;"></span></label><input type="number" id="setElevationOffset" value="0" step="0.1"></div>
+                <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+                    <label style="margin:0;flex:1;" data-i18n="settings.lang_label">Idioma / Language</label>
+                    <select id="setLang" onchange="setLanguage(this.value)" style="width:auto;">
+                        <option value="es" data-i18n="settings.lang_es">Español</option>
+                        <option value="en" data-i18n="settings.lang_en">English</option>
+                    </select>
+                </div>
             </div>
 
             <div class="tab-content" id="tab-map" style="display:none;">
                 <div style="display:grid;grid-template-columns:1fr auto auto;gap:6px 12px;align-items:center;">
-                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show heard stations in SAT mode</label>
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;" data-i18n="label.map_show_heard_sat">Show heard stations in SAT mode</label>
                     <input type="checkbox" id="mapShowHeardSat" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
                     <input type="color" id="mapColorHeardSat" value="#3498db" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
 
-                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show heard stations in Terrestrial mode</label>
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;" data-i18n="label.map_show_heard_ter">Show heard stations in Terrestrial mode</label>
                     <input type="checkbox" id="mapShowHeardTer" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
                     <input type="color" id="mapColorHeardTer" value="#f0a030" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
 
-                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show QSO stations</label>
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;" data-i18n="label.map_show_qso">Show QSO stations</label>
                     <input type="checkbox" id="mapShowQSO" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
                     <input type="color" id="mapColorQSO" value="#2ecc71" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
 
-                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show satellites</label>
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;" data-i18n="label.map_show_sat">Show satellites</label>
                     <input type="checkbox" id="mapShowSat" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
                     <input type="color" id="mapColorSat" value="#aaaaaa" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
 
-                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Show distance</label>
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;" data-i18n="label.map_show_distance">Show distance</label>
                     <input type="checkbox" id="mapShowGeodesic" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
                     <span></span>
 
                     <hr style="grid-column:1/-1;border:none;border-top:1px solid var(--border);margin:4px 0;">
 
-                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Tile style</label>
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;" data-i18n="label.tile_style">Tile style</label>
                     <select id="setMapTileStyle" style="grid-column:span 2;">
-                        <option value="dark">Dark</option>
-                        <option value="light">Light</option>
+                        <option value="dark" data-i18n="label.tile_dark">Dark</option>
+                        <option value="light" data-i18n="label.tile_light">Light</option>
                     </select>
 
-                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;">Cache tiles for offline</label>
+                    <label style="font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;margin:0;" data-i18n="label.tile_cache">Cache tiles for offline</label>
                     <input type="checkbox" id="setMapTileCache" checked style="width:16px;height:16px;cursor:pointer;justify-self:end;">
-                    <button class="btn btn-sm btn-outline" onclick="clearTileCache()" style="font-size:0.78em;justify-self:end;">Clear tile cache</button>
+                    <button class="btn btn-sm btn-outline" onclick="clearTileCache()" style="font-size:0.78em;justify-self:end;" data-i18n="btn.clear_cache">Clear tile cache</button>
                 </div>
             </div>
 
             <div class="tab-content" id="tab-terminal" style="display:none;">
                 <div class="form-group" style="display:flex;align-items:center;gap:8px;">
-                    <span style="flex:1;font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Raw serial monitor</span>
+                    <span style="flex:1;font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;" data-i18n="label.raw_monitor">Raw serial monitor</span>
                     <input type="checkbox" id="setRawMonitor" style="width:16px;height:16px;cursor:pointer;">
                 </div>
                 <div class="form-group">
                     <label style="display:flex;align-items:center;gap:8px;">
-                        <span style="flex:1;">TX messages color</span>
+                        <span style="flex:1;" data-i18n="label.tx_color">TX messages color</span>
                         <input type="color" id="termColorTx" value="#f0a030" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
                     </label>
                 </div>
                 <div class="form-group">
                     <label style="display:flex;align-items:center;gap:8px;">
-                        <span style="flex:1;">RX messages color</span>
+                        <span style="flex:1;" data-i18n="label.rx_color">RX messages color</span>
                         <input type="color" id="termColorRx" value="#00e676" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
                     </label>
                 </div>
                 <div class="form-group">
                     <label style="display:flex;align-items:center;gap:8px;">
-                        <span style="flex:1;">Echo messages color</span>
+                        <span style="flex:1;" data-i18n="label.echo_color">Echo messages color</span>
                         <input type="color" id="termColorEcho" value="#008844" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
                     </label>
                 </div>
                 <div class="form-group">
                     <label style="display:flex;align-items:center;gap:8px;">
-                        <span style="flex:1;">Own repeat messages color</span>
+                        <span style="flex:1;" data-i18n="label.own_color">Own repeat messages color</span>
                         <input type="color" id="termColorOwn" value="#3b9fd4" style="width:40px;height:28px;padding:2px;border:1px solid var(--border);border-radius:3px;background:transparent;cursor:pointer;">
                     </label>
                 </div>
@@ -307,30 +315,30 @@
 
             <div class="tab-content" id="tab-tnc" style="display:none;">
                 <div class="form-group" style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:12px;">
-                    <label style="font-weight:600;color:var(--text-bright);font-size:0.85em;">🔊 Output Calibration</label>
+                    <label style="font-weight:600;color:var(--text-bright);font-size:0.85em;" data-i18n="label.output_cal">🔊 Output Calibration</label>
                     <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
                         <input type="checkbox" id="setToneEnable" style="width:16px;height:16px;cursor:pointer;" onchange="toggleCalTone()">
-                        <label style="margin:0;font-size:0.8em;color:var(--accent);cursor:pointer;">Transmitir tono de calibración</label>
+                        <label style="margin:0;font-size:0.8em;color:var(--accent);cursor:pointer;" data-i18n="label.tone_enable">Transmitir tono de calibración</label>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-                        <label style="flex:0 0 50px;font-size:0.75em;color:#888;">Tono:</label>
+                        <label style="flex:0 0 50px;font-size:0.75em;color:#888;" data-i18n="label.tone">Tono:</label>
                         <select id="setToneFreq" style="flex:1;background:#1a1f2a;border:1px solid var(--border);color:var(--text-bright);padding:8px 12px;border-radius:var(--radius-sm);font-size:0.9em;outline:none;" onchange="updateCalToneFreq()">
-                            <option value="1200">1200 Hz (AFSK Mark)</option>
-                            <option value="2200">2200 Hz (AFSK Space)</option>
+                            <option value="1200" data-i18n="label.tone_1200">1200 Hz (AFSK Mark)</option>
+                            <option value="2200" data-i18n="label.tone_2200">2200 Hz (AFSK Space)</option>
                         </select>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-                        <label style="flex:0 0 50px;font-size:0.75em;color:#888;">TX Gain:</label>
+                        <label style="flex:0 0 50px;font-size:0.75em;color:#888;" data-i18n="label.tx_gain">TX Gain:</label>
                         <input type="range" id="setTXGain" min="0" max="100" value="50" step="1" style="flex:1;height:20px;accent-color:var(--accent);" oninput="updateTXGain()">
                         <span id="txGainVal" style="min-width:40px;font-size:0.8em;color:var(--accent2);font-family:var(--font-mono);text-align:right;">50%</span>
-                        <button class="btn btn-sm btn-outline" onclick="readTXGain()" style="font-size:0.7em;padding:2px 6px;" title="Read TX gain from TNC">↺</button>
+                        <button class="btn btn-sm btn-outline" onclick="readTXGain()" style="font-size:0.7em;padding:2px 6px;" data-i18n-title="label.read_tx_gain">↺</button>
                     </div>
                 </div>
 
                 <div class="form-group" style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:12px;">
-                    <label style="font-weight:600;color:var(--text-bright);font-size:0.85em;">🎤 Input Monitor</label>
+                    <label style="font-weight:600;color:var(--text-bright);font-size:0.85em;" data-i18n="label.input_monitor">🎤 Input Monitor</label>
                     <div style="display:flex;align-items:center;gap:8px;margin-top:6px;">
-                        <button class="btn btn-outline btn-sm" id="btnAudioMonitor" onclick="toggleAudioMonitor()">Iniciar monitoreo</button>
+                        <button class="btn btn-outline btn-sm" id="btnAudioMonitor" onclick="toggleAudioMonitor()" data-i18n="btn.start_monitor">Iniciar monitoreo</button>
                         <span id="inputLevelDb" style="font-size:0.8em;color:#888;font-family:var(--font-mono);">-- dB</span>
                         <span id="inputLevelStatus" style="font-size:0.75em;font-weight:600;margin-left:4px;">--</span>
                     </div>
@@ -338,31 +346,31 @@
                         <progress id="inputLevelBar" value="0" max="100" style="width:100%;height:14px;border-radius:6px;background:#1a1f2a;"></progress>
                         <div style="display:flex;justify-content:space-between;font-size:0.6em;color:#555;font-family:var(--font-mono);margin-top:2px;">
                             <span>-40 dBFS</span>
-                            <span style="color:#2ecc71;">-6 dB óptimo</span>
+                            <span style="color:#2ecc71;" data-i18n="label.db_optimal">-6 dB óptimo</span>
                             <span>0 dBFS</span>
                         </div>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;margin-top:4px;">
-                        <span style="font-size:0.7em;color:#888;">RX Gain:</span>
+                        <span style="font-size:0.7em;color:#888;" data-i18n="label.rx_gain">RX Gain:</span>
                         <span id="inputGainDisplay" style="font-size:0.8em;color:var(--accent2);font-family:var(--font-mono);">--</span>
-                        <button class="btn btn-sm btn-outline" onclick="adjustInputLevels()" style="font-size:0.7em;padding:2px 6px;" title="Auto-adjust input levels">Auto</button>
+                        <button class="btn btn-sm btn-outline" onclick="adjustInputLevels()" style="font-size:0.7em;padding:2px 6px;" data-i18n-title="label.auto_adjust" data-i18n="btn.auto">Auto</button>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label style="font-weight:600;color:var(--text-bright);font-size:0.85em;">KISS Parameters</label>
+                    <label style="font-weight:600;color:var(--text-bright);font-size:0.85em;" data-i18n="label.kiss_params">KISS Parameters</label>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">
-                        <div><label style="font-size:0.7em;color:#888;">TxDelay (ms)</label><input type="number" id="setTxDelay" value="300" min="0" max="5000" step="10"></div>
-                        <div><label style="font-size:0.7em;color:#888;">Persistence (0-255)</label><input type="number" id="setPersistence" value="63" min="0" max="255" step="1"></div>
-                        <div><label style="font-size:0.7em;color:#888;">SlotTime (ms)</label><input type="number" id="setSlotTime" value="100" min="0" max="2550" step="10"></div>
-                        <div><label style="font-size:0.7em;color:#888;">TxTail (ms)</label><input type="number" id="setTxTail" value="20" min="0" max="2550" step="10"></div>
+                        <div><label style="font-size:0.7em;color:#888;" data-i18n="label.tx_delay">TxDelay (ms)</label><input type="number" id="setTxDelay" value="300" min="0" max="5000" step="10"></div>
+                        <div><label style="font-size:0.7em;color:#888;" data-i18n="label.persistence">Persistence (0-255)</label><input type="number" id="setPersistence" value="63" min="0" max="255" step="1"></div>
+                        <div><label style="font-size:0.7em;color:#888;" data-i18n="label.slot_time">SlotTime (ms)</label><input type="number" id="setSlotTime" value="100" min="0" max="2550" step="10"></div>
+                        <div><label style="font-size:0.7em;color:#888;" data-i18n="label.tx_tail">TxTail (ms)</label><input type="number" id="setTxTail" value="20" min="0" max="2550" step="10"></div>
                     </div>
                     <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap;">
-                        <button class="btn btn-outline btn-sm" onclick="applyKISSFromUI()" id="btnApplyKISS">Aplicar</button>
-                        <button class="btn btn-outline btn-sm" onclick="readKISSFromTNC()" id="btnReadKISS">Leer del TNC</button>
+                        <button class="btn btn-outline btn-sm" onclick="applyKISSFromUI()" id="btnApplyKISS" data-i18n="btn.apply">Aplicar</button>
+                        <button class="btn btn-outline btn-sm" onclick="readKISSFromTNC()" id="btnReadKISS" data-i18n="btn.read_tnc">Leer del TNC</button>
                         <label style="display:flex;align-items:center;gap:4px;font-size:0.75em;color:#888;cursor:pointer;margin:0;">
                             <input type="checkbox" id="setApplyOnConnect" style="width:14px;height:14px;cursor:pointer;">
-                            Aplicar al conectar
+                            <span data-i18n="btn.apply_on_connect">Aplicar al conectar</span>
                         </label>
                     </div>
                 </div>
@@ -370,34 +378,34 @@
 
             <div class="tab-content" id="tab-licenses" style="display:none;">
                 <div class="licenses-content">
-                    <p><b style="color:var(--text-bright);">OrbitAPRS</b> — Satellite QSO Terminal</p>
-                    <p><b>Version:</b> 2.1.2 <button class="btn btn-sm btn-outline" onclick="forceSWUpdate()" style="font-size:0.7em;vertical-align:middle;padding:1px 6px;" title="Forzar actualizaci&oacute;n del service worker">&#x21bb;</button></p>
-                    <p>License: MIT</p>
-                    <p style="margin-bottom:12px;">Copyright (c) 2026 XE2LDL - Luis</p>
-                    <p style="color:var(--text-bright);font-weight:600;margin-top:16px;">Third-party licenses:</p>
+                    <p><b style="color:var(--text-bright);">OrbitAPRS</b> <span data-i18n="licenses.title">— Satellite QSO Terminal</span></p>
+                    <p><b data-i18n="licenses.version">Version:</b> 2.1.3 <button class="btn btn-sm btn-outline" onclick="forceSWUpdate()" style="font-size:0.7em;vertical-align:middle;padding:1px 6px;" data-i18n-title="licenses.version" title="Forzar actualizaci&oacute;n del service worker">&#x21bb;</button></p>
+                    <p data-i18n="licenses.license">License: MIT</p>
+                    <p style="margin-bottom:12px;" data-i18n="licenses.copyright">Copyright (c) 2026 XE2LDL - Luis</p>
+                    <p style="color:var(--text-bright);font-weight:600;margin-top:16px;" data-i18n="licenses.third_party">Third-party licenses:</p>
                     <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b>Leaflet 1.9.4</b> — BSD-2-Clause</p>
-                    <p>Copyright (c) 2010-2024, Volodymyr Agafonkin</p>
+                    <p><b>Leaflet 1.9.4</b> <span data-i18n="licenses.leaflet">— BSD-2-Clause</span></p>
+                    <p data-i18n="licenses.leaflet_copyright">Copyright (c) 2010-2024, Volodymyr Agafonkin</p>
                     <p style="margin-bottom:8px;"><a href="https://leafletjs.com" target="_blank" style="color:var(--accent);">https://leafletjs.com</a></p>
                     <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b>satellite.js</b> — MIT License</p>
-                    <p>Copyright (c) SatelliteJS Contributors</p>
+                    <p><b>satellite.js</b> <span data-i18n="licenses.satellitejs">— MIT License</span></p>
+                    <p data-i18n="licenses.satellitejs_copyright">Copyright (c) SatelliteJS Contributors</p>
                     <p style="margin-bottom:8px;"><a href="https://github.com/satellitejs/satellite.js" target="_blank" style="color:var(--accent);">https://github.com/satellitejs/satellite.js</a></p>
                     <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b>CartoDB tiles</b> — CC-BY-4.0</p>
-                    <p>Map tiles by CARTO, &copy; <a href="https://openstreetmap.org/copyright" target="_blank" style="color:var(--accent);">OpenStreetMap contributors</a></p>
+                    <p><b data-i18n="licenses.carto">CartoDB tiles</b> — CC-BY-4.0</p>
+                    <p data-i18n="licenses.carto_attrib">Map tiles by CARTO, &copy; <a href="https://openstreetmap.org/copyright" target="_blank" style="color:var(--accent);">OpenStreetMap contributors</a></p>
                     <p style="margin-bottom:8px;"><a href="https://carto.com/attribution" target="_blank" style="color:var(--accent);">https://carto.com/attribution</a></p>
                     <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b>TLE orbital data</b> — Public Domain</p>
-                    <p>Provided by <a href="https://celestrak.org" target="_blank" style="color:var(--accent);">Celestrak</a> / Dr. T.S. Kelso</p>
-                    <p style="margin-bottom:8px;">Additional data from <a href="https://amsat.org" target="_blank" style="color:var(--accent);">AMSAT</a></p>
+                    <p><b data-i18n="licenses.tle">TLE orbital data</b> — Public Domain</p>
+                    <p data-i18n="licenses.tle_attrib">Provided by <a href="https://celestrak.org" target="_blank" style="color:var(--accent);">Celestrak</a> / Dr. T.S. Kelso</p>
+                    <p style="margin-bottom:8px;" data-i18n="licenses.amsat">Additional data from <a href="https://amsat.org" target="_blank" style="color:var(--accent);">AMSAT</a></p>
                     <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b>Icons</b></p>
-                    <p style="margin-bottom:8px;">PWA icons generated with Google Gemini AI</p>
+                    <p><b data-i18n="licenses.icons">Icons</b></p>
+                    <p style="margin-bottom:8px;" data-i18n="licenses.icons_attrib">PWA icons generated with Google Gemini AI</p>
                     <hr style="border-color:var(--border);margin:8px 0;">
-                    <p style="font-size:0.85em;color:#666;">OrbitAPRS is an open-source project for amateur radio satellite communication.</p>
+                    <p style="font-size:0.85em;color:#666;" data-i18n="licenses.description">OrbitAPRS is an open-source project for amateur radio satellite communication.</p>
                     <hr style="border-color:var(--border);margin:8px 0;">
-                    <p style="font-size:0.8em;color:#555;font-style:italic;border-left:3px solid var(--accent);padding-left:10px;margin-top:10px;">
+                    <p style="font-size:0.8em;color:#555;font-style:italic;border-left:3px solid var(--accent);padding-left:10px;margin-top:10px;" data-i18n="licenses.disclaimer">
                     <b>Disclaimer:</b> This project is built as a hobby and is published solely to share enthusiasm.
                     It is provided "as is", without any warranty or liability of any kind.
                     Built with AI assistance.
@@ -406,18 +414,18 @@
             </div>
 
             <div class="btn-row">
-                <button class="btn btn-outline" onclick="toggleModal('settingsModal',false)">Cancel</button>
-                <button class="btn btn-primary" onclick="saveSettings()">💾 Save</button>
+                <button class="btn btn-outline" onclick="toggleModal('settingsModal',false)" data-i18n="btn.cancel">Cancel</button>
+                <button class="btn btn-primary" onclick="saveSettings()" data-i18n="btn.save">💾 Save</button>
             </div>
         </div>
     </div>
 
     <div class="modal-overlay" id="symbolPickerModal">
         <div class="modal" style="max-width:500px;">
-            <h3>APRS Symbol</h3>
+            <h3 data-i18n="modal.aprs_symbol">APRS Symbol</h3>
             <div id="symbolPickerContent"></div>
             <div class="btn-row" style="margin-top:12px;">
-                <button class="btn btn-outline" onclick="toggleModal('symbolPickerModal',false)">Cancel</button>
+                <button class="btn btn-outline" onclick="toggleModal('symbolPickerModal',false)" data-i18n="btn.cancel">Cancel</button>
             </div>
         </div>
     </div>
@@ -426,35 +434,36 @@
 
     <div class="modal-overlay" id="beaconModal">
         <div class="modal" style="max-width:400px;height:auto;">
-            <h3>📡 Beacon Configuration</h3>
-            <p style="font-size:0.8em;color:#888;margin-bottom:12px;">Sends APRS position packets periodically in terrestrial mode.</p>
+            <h3 data-i18n="modal.beacon_title">📡 Beacon Configuration</h3>
+            <p style="font-size:0.8em;color:#888;margin-bottom:12px;" data-i18n="modal.beacon_desc">Sends APRS position packets periodically in terrestrial mode.</p>
             <div class="form-group">
-                <label>Periodicidad (segundos)</label>
+                <label data-i18n="label.period">Periodicidad (segundos)</label>
                 <input type="number" id="beaconInterval" value="300" min="10" max="3600" step="10">
             </div>
             <div class="form-group" style="display:flex;align-items:center;gap:8px;">
                 <input type="checkbox" id="beaconShareLocation" checked style="width:16px;height:16px;cursor:pointer;">
-                <label style="margin:0;cursor:pointer;">Compartir ubicación</label>
+                <label style="margin:0;cursor:pointer;" data-i18n="label.share_location">Compartir ubicación</label>
             </div>
             <div class="form-group">
-                <label>Mensaje (opcional)</label>
-                <input type="text" id="beaconMessage" placeholder="Mensaje libre..." maxlength="50">
+                <label data-i18n="label.message_opt">Mensaje (opcional)</label>
+                <input type="text" id="beaconMessage" data-i18n-placeholder="label.message_placeholder" placeholder="Mensaje libre..." maxlength="50">
             </div>
             <div class="form-group" style="display:flex;align-items:center;gap:12px;padding-top:8px;border-top:1px solid var(--border);">
-                <label style="margin:0;flex:1;font-weight:600;color:var(--text-bright);">Beacon</label>
+                <label style="margin:0;flex:1;font-weight:600;color:var(--text-bright);" data-i18n="label.beacon">Beacon</label>
                 <label class="toggle-switch">
                     <input type="checkbox" id="beaconToggle">
                     <span class="toggle-slider"></span>
                 </label>
             </div>
             <div class="btn-row">
-                <button class="btn btn-outline" onclick="toggleModal('beaconModal',false)">Cancelar</button>
-                <button class="btn btn-primary" onclick="saveBeaconConfig()">Confirmar</button>
+                <button class="btn btn-outline" onclick="toggleModal('beaconModal',false)" data-i18n="btn.cancel">Cancelar</button>
+                <button class="btn btn-primary" onclick="saveBeaconConfig()" data-i18n="btn.confirm">Confirmar</button>
             </div>
         </div>
     </div>
 
     <script src="js/satellite-lib.js?v=2.2"></script>
+    <script src="js/i18n.js?v=2.2"></script>
     <script src="js/app.js?v=2.2"></script>
     <script src="js/ui.js?v=2.2"></script>
     <script src="js/satellite.js?v=2.2"></script>
