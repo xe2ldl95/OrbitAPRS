@@ -144,7 +144,11 @@ function init() {
     setInterval(refreshSatPasses, 30000);
     setInterval(renderHeardList, 10000);
     refreshSatPasses();
-    selectSatellite('iss');
+    if (state.selectedSat) {
+        selectSatellite(state.selectedSat);
+    } else {
+        selectSatellite('iss');
+    }
 
     document.getElementById('terminal').innerHTML =
         '<div class="line system"><span class="timestamp">[READY]</span> Terminal ready.</div>';
@@ -250,6 +254,7 @@ function loadSettings() {
                 state.heardStationsLimit = s.heardStationsLimit || 20;
                 state.customPaths = Array.isArray(s.customPaths) ? s.customPaths : [];
                 state.chatList = Array.isArray(s.chatList) ? s.chatList : [];
+                state.selectedSat = s.selectedSat || null;
                 state.chatActive = s.chatActive || null;
             } catch (e) {}
         }
@@ -531,6 +536,7 @@ function persistSettings() {
             customPaths: state.customPaths,
             chatList: state.chatList,
             heardStationsLimit: state.heardStationsLimit,
+            selectedSat: state.selectedSat,
             chatActive: state.chatActive,
         }));
     } catch (e) {}

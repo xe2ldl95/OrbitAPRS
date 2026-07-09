@@ -193,7 +193,7 @@ function deleteChatCurrent() {
     if (!call) return;
     if (!confirm('Delete conversation with ' + call + '?')) return;
     delete _chatMessages[call];
-    state.chatList = state.chatList.filter(function(c) { return c.call !== call; });
+    state.chatList = state.chatList.filter(function(c) { return (c.baseCall || c.call) !== call; });
     state.chatActive = null;
     saveChatMessages();
     persistSettings();
@@ -651,6 +651,8 @@ function switchTerminalTab(tab) {
     panel.classList.toggle('chat-active', tab === 'chat');
     var followBtn = document.getElementById('mapFollowBtn');
     followBtn.style.display = tab === 'map' ? '' : 'none';
+    var clearBtn = document.getElementById('clearBtn');
+    if (clearBtn) clearBtn.style.display = (tab === 'terminal' || tab === 'chat') ? '' : 'none';
     if (tab === 'nav' && typeof navView !== 'undefined') {
         setTimeout(function() { navView.resize(); }, 50);
     }
@@ -941,7 +943,8 @@ function parseThirdPartyPacket(info) {
 
 function addChatMessage(call, text, type) {
     if (!call || !text) return;
-    var key = call.toUpperCase().split('-')[0];
+    var fullCall = call.toUpperCase();
+    var key = fullCall.split('-')[0];
     if (!_chatMessages[key]) _chatMessages[key] = [];
     _chatMessages[key].push({
         type: type,
@@ -952,17 +955,20 @@ function addChatMessage(call, text, type) {
     if (_chatMessages[key].length > 200) _chatMessages[key].shift();
     saveChatMessages();
 
-    var existing = state.chatList.findIndex(function(c) { return c.call === key; });
+    var existing = state.chatList.findIndex(function(c) { return (c.baseCall || c.call) === key; });
     if (existing >= 0) {
         var ch = state.chatList[existing];
         ch.lastMessage = text;
         ch.lastTime = Date.now();
+        ch.callFull = fullCall;
         if (key !== state.chatActive) ch.unread = (ch.unread || 0) + 1;
         state.chatList.splice(existing, 1);
         state.chatList.unshift(ch);
     } else {
         state.chatList.unshift({
             call: key,
+            baseCall: key,
+            callFull: fullCall,
             lastMessage: text,
             lastTime: Date.now(),
             unread: type === 'received' ? 1 : 0
@@ -975,15 +981,22 @@ function addChatMessage(call, text, type) {
 }
 
 function selectChat(call) {
-    state.chatActive = call;
+    var baseCall = call.split('-')[0];
+    state.chatActive = baseCall;
     if (state.chatList.length) {
-        var found = state.chatList.find(function(c) { return c.call === call; });
-        if (found) found.unread = 0;
+        var found = state.chatList.find(function(c) { return (c.baseCall || c.call) === baseCall; });
+        if (found) {
+            found.unread = 0;
+            document.getElementById('packetTarget').value = found.callFull || found.call;
+        } else {
+            document.getElementById('packetTarget').value = call;
+        }
+    } else {
+        document.getElementById('packetTarget').value = call;
     }
     persistSettings();
-    document.getElementById('packetTarget').value = call;
     renderChatList();
-    renderChatMessages(call);
+    renderChatMessages(baseCall);
 }
 
 function renderChatView() {
@@ -1004,15 +1017,16 @@ function renderChatList() {
         return;
     }
     el.innerHTML = state.chatList.map(function(c) {
-        var active = c.call === state.chatActive ? ' active' : '';
+        var displayCall = c.callFull || c.call;
+        var active = (c.baseCall || c.call) === state.chatActive ? ' active' : '';
         var unreadBadge = c.unread ? '<span class="chat-list-unread">' + c.unread + '</span>' : '';
         var ago = '';
         if (c.lastTime) {
             var secs = Math.round((Date.now() - c.lastTime) / 1000);
             ago = secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm';
         }
-        return '<div class="chat-list-item' + active + '" onclick="selectChat(\'' + c.call + '\')">' +
-            '<div class="chat-list-top"><span class="chat-list-call">' + c.call + '</span>' + unreadBadge + '<span class="chat-list-time">' + ago + '</span></div>' +
+        return '<div class="chat-list-item' + active + '" onclick="selectChat(\'' + displayCall + '\')">' +
+            '<div class="chat-list-top"><span class="chat-list-call">' + displayCall + '</span>' + unreadBadge + '<span class="chat-list-time">' + ago + '</span></div>' +
             '<div class="chat-list-preview">' + escapeHTML((c.lastMessage || '').slice(0, 40)) + '</div>' +
             '</div>';
     }).join('');
