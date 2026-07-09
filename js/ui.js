@@ -72,6 +72,10 @@ function removeMacro(idx) {
 
 var _symbolPickerIdx = -1;
 
+function jsEsc(str) {
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 function openSymbolPicker(idx) {
     _symbolPickerIdx = idx;
     var m = state.macros[idx];
@@ -96,19 +100,20 @@ function renderSymbolPicker(activeTable, activeSymbol) {
     var tables = ['/', '\\'];
     var tableNames = { '/': 'Primary (/)', '\\': 'Alternate (\\)' };
     var html = '<div class="symbol-table-toggle">';
-    var safeSymbol = activeSymbol.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    var escSymbol = jsEsc(activeSymbol);
     tables.forEach(function(t) {
-        html += '<button class="btn btn-sm ' + (t === activeTable ? 'btn-primary' : 'btn-outline') + '" onclick="renderSymbolPicker(\'' + t + '\',\'' + safeSymbol + '\')">' + tableNames[t] + '</button>';
+        var active = t === activeTable ? 'btn-primary' : 'btn-outline';
+        html += '<button class="btn btn-sm ' + active + '" onclick="renderSymbolPicker(\'' + jsEsc(t) + '\',\'' + escSymbol + '\')">' + tableNames[t] + '</button>';
     });
     html += '</div>';
     html += '<div class="symbol-picker-grid">';
-    var symbols = APRS_SYMBOLS[tables.indexOf(activeTable) === 0 ? 'primary' : 'alternate'];
+    var syms = APRS_SYMBOLS[tables.indexOf(activeTable) === 0 ? 'primary' : 'alternate'];
+    var escTable = jsEsc(activeTable);
     for (var code = 33; code <= 126; code++) {
         var ch = String.fromCharCode(code);
-        var name = symbols[ch] || 'Unknown';
+        var name = syms[ch] || 'Unknown';
         var selected = ch === activeSymbol ? ' selected' : '';
-        var jsEsc = ch === "'" ? "\\'" : (ch === "\\" ? "\\\\" : ch);
-        html += '<div class="symbol-picker-cell' + selected + '" onclick="selectSymbol(\'' + activeTable + '\',\'' + jsEsc + '\')" title="' + escapeHTML(name) + '">' + escapeHTML(ch) + '</div>';
+        html += '<div class="symbol-picker-cell' + selected + '" onclick="selectSymbol(\'' + escTable + '\',\'' + jsEsc(ch) + '\')" title="' + escapeHTML(name) + '">' + escapeHTML(ch) + '</div>';
     }
     html += '</div>';
     el.innerHTML = html;
