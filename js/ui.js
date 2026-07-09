@@ -15,6 +15,8 @@ function resolveMacroTemplate(macro, target) {
     t = t.replace(/%R/g, tloc);
     t = t.replace(/%S/g, satName);
     t = t.replace(/%N/g, seq);
+    t = t.replace(/%T/g, macro.symbolTable || '/');
+    t = t.replace(/%Y/g, macro.symbol || '[');
     // Legacy brace tokens (backward compatibility)
     t = t.replace(/\{mycall\}/g, state.myCall || 'N0CALL');
     t = t.replace(/\{mygrid\}/g, (state.myGrid || '--').toUpperCase());
@@ -42,6 +44,7 @@ function renderMacroEditor() {
             '<input class="macro-name" value="' + escapeHTML(m.name || '') + '" placeholder="Name" onchange="updateMacro(' + i + ',\'name\',this.value)" maxlength="16">' +
             '<input class="macro-template" value="' + escapeHTML(m.template || '') + '" placeholder="Template" onchange="updateMacro(' + i + ',\'template\',this.value)" maxlength="200">' +
             '<label class="macro-log" title="Auto-log QSO when sent"><input type="checkbox" onchange="updateMacro(' + i + ',\'logQSO\',this.checked)"' + (m.logQSO ? ' checked' : '') + '>📝</label>' +
+            '<button class="macro-symbol-btn" onclick="openSymbolPicker(' + i + ')" title="Select APRS symbol: ' + (m.symbolTable || '/') + (m.symbol || '[') + '">' + escapeHTML((m.symbolTable || '/') + (m.symbol || '[')) + '</button>' +
             '<button class="macro-del" onclick="removeMacro(' + i + ')" title="Remove">✕</button>' +
         '</div>'
     ).join('');
@@ -55,7 +58,7 @@ function updateMacro(idx, field, value) {
 
 function addMacro() {
     const id = 'm' + Date.now();
-    state.macros.push({ id, name: 'New', icon: '🔘', template: 'Hello World', logQSO: false });
+    state.macros.push({ id, name: 'New', icon: '🔘', template: 'Hello World', logQSO: false, symbolTable: '/', symbol: '[' });
     renderMacroEditor();
     renderQuickActions();
 }
@@ -65,6 +68,50 @@ function removeMacro(idx) {
     state.macros.splice(idx, 1);
     renderMacroEditor();
     renderQuickActions();
+}
+
+var _symbolPickerIdx = -1;
+
+function openSymbolPicker(idx) {
+    _symbolPickerIdx = idx;
+    var m = state.macros[idx];
+    if (!m) return;
+    renderSymbolPicker(m.symbolTable || '/', m.symbol || '[');
+    toggleModal('symbolPickerModal', true);
+}
+
+function selectSymbol(table, sym) {
+    var m = state.macros[_symbolPickerIdx];
+    if (!m) return;
+    m.symbolTable = table;
+    m.symbol = sym;
+    renderMacroEditor();
+    renderQuickActions();
+    toggleModal('symbolPickerModal', false);
+}
+
+function renderSymbolPicker(activeTable, activeSymbol) {
+    var el = document.getElementById('symbolPickerContent');
+    if (!el) return;
+    var tables = ['/', '\\'];
+    var tableNames = { '/': 'Primary (/)', '\\': 'Alternate (\\)' };
+    var html = '<div class="symbol-table-toggle">';
+    var safeSymbol = activeSymbol.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+    tables.forEach(function(t) {
+        html += '<button class="btn btn-sm ' + (t === activeTable ? 'btn-primary' : 'btn-outline') + '" onclick="renderSymbolPicker(\'' + t + '\',\'' + safeSymbol + '\')">' + tableNames[t] + '</button>';
+    });
+    html += '</div>';
+    html += '<div class="symbol-picker-grid">';
+    var symbols = APRS_SYMBOLS[tables.indexOf(activeTable) === 0 ? 'primary' : 'alternate'];
+    for (var code = 33; code <= 126; code++) {
+        var ch = String.fromCharCode(code);
+        var name = symbols[ch] || 'Unknown';
+        var selected = ch === activeSymbol ? ' selected' : '';
+        var jsEsc = ch === "'" ? "\\'" : (ch === "\\" ? "\\\\" : ch);
+        html += '<div class="symbol-picker-cell' + selected + '" onclick="selectSymbol(\'' + activeTable + '\',\'' + jsEsc + '\')" title="' + escapeHTML(name) + '">' + escapeHTML(ch) + '</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
 }
 
 function resetMacros() {

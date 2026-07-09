@@ -226,6 +226,26 @@ body {
 .macro-log input { width: 14px; height: 14px; cursor: pointer; accent-color: var(--accent2); }
 .macro-del { padding: 2px 8px; font-size: 0.85em; background: transparent; border: none; cursor: pointer; color: #e74c3c; border-radius: 3px; flex-shrink: 0; line-height: 1.4; }
 .macro-del:hover { background: #2a1a1a; }
+.macro-symbol-btn {
+    padding: 2px 8px; font-size: 0.85em; background: #1a2230; border: 1px solid var(--border);
+    cursor: pointer; color: var(--text-bright); border-radius: 3px; flex-shrink: 0; line-height: 1.4; font-family: var(--font-mono);
+}
+.macro-symbol-btn:hover { border-color: var(--accent2); background: #1a2a3a; }
+
+.symbol-table-toggle { display: flex; gap: 6px; margin-bottom: 10px; justify-content: center; }
+.symbol-picker-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+    gap: 3px; max-height: 300px; overflow-y: auto;
+    background: #0d111a; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px;
+}
+.symbol-picker-cell {
+    display: flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; cursor: pointer; border-radius: 3px;
+    font-family: var(--font-mono); font-size: 1em; color: var(--text-bright);
+    background: #151a25; border: 1px solid transparent; transition: all 0.15s;
+}
+.symbol-picker-cell:hover { border-color: var(--accent2); background: #1a2434; }
+.symbol-picker-cell.selected { border-color: var(--accent2); background: #1a3a4a; color: #81d4fa; }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

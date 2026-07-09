@@ -129,6 +129,16 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="symbolPickerModal">
+        <div class="modal" style="max-width:500px;">
+            <h3>APRS Symbol</h3>
+            <div id="symbolPickerContent"></div>
+            <div class="btn-row" style="margin-top:12px;">
+                <button class="btn btn-outline" onclick="toggleModal('symbolPickerModal',false)">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="chatClearModal">
         <div class="modal" style="max-width:400px;height:auto;padding:24px;">
             <h3>Clear Chat</h3>
@@ -209,7 +219,7 @@
             </div>
 
             <div class="tab-content" id="tab-macros" style="display:none;">
-                <p style="color:#888;font-size:0.82em;margin-bottom:6px;"><code style="color:var(--accent2);">%C</code> <span style="color:#555;">target con SSID</span> &nbsp; <code style="color:var(--accent2);">%c</code> <span style="color:#555;">target sin SSID</span> &nbsp; <code style="color:var(--accent2);">%M</code> <span style="color:#555;">mi callsign</span> &nbsp; <code style="color:var(--accent2);">%G</code> <span style="color:#555;">mi grid</span> &nbsp; <code style="color:var(--accent2);">%R</code> <span style="color:#555;">grid remoto</span> &nbsp; <code style="color:var(--accent2);">%S</code> <span style="color:#555;">satélite</span> &nbsp; <code style="color:var(--accent2);">%N</code> <span style="color:#555;">nro. secuencia</span></p>
+                <p style="color:#888;font-size:0.82em;margin-bottom:6px;"><code style="color:var(--accent2);">%C</code> <span style="color:#555;">target con SSID</span> &nbsp; <code style="color:var(--accent2);">%c</code> <span style="color:#555;">target sin SSID</span> &nbsp; <code style="color:var(--accent2);">%M</code> <span style="color:#555;">mi callsign</span> &nbsp; <code style="color:var(--accent2);">%G</code> <span style="color:#555;">mi grid</span> &nbsp; <code style="color:var(--accent2);">%R</code> <span style="color:#555;">grid remoto</span> &nbsp; <code style="color:var(--accent2);">%S</code> <span style="color:#555;">satélite</span> &nbsp; <code style="color:var(--accent2);">%N</code> <span style="color:#555;">nro. secuencia</span> &nbsp; <code style="color:var(--accent2);">%T</code> <span style="color:#555;">tabla símbolo</span> &nbsp; <code style="color:var(--accent2);">%Y</code> <span style="color:#555;">símbolo APRS</span></p>
                 <div id="macroEditor"></div>
                 <div style="margin-top:6px;">
                     <button class="btn btn-outline" onclick="addMacro()" style="font-size:0.85em;">➕ Add Macro</button>
