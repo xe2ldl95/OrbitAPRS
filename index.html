@@ -383,7 +383,7 @@
             <div class="tab-content" id="tab-licenses" style="display:none;">
                 <div class="licenses-content">
                     <p><b style="color:var(--text-bright);">OrbitAPRS</b> <span data-i18n="licenses.title">— Satellite QSO Terminal</span></p>
-                    <p><b data-i18n="licenses.version">Version:</b> 2.1.3 <button class="btn btn-sm btn-outline" onclick="forceSWUpdate()" style="font-size:0.7em;vertical-align:middle;padding:1px 6px;" data-i18n-title="licenses.version" title="Forzar actualizaci&oacute;n del service worker">&#x21bb;</button></p>
+                    <p><b data-i18n="licenses.version">Version:</b> 2.1.4 <button class="btn btn-sm btn-outline" onclick="forceSWUpdate()" style="font-size:0.7em;vertical-align:middle;padding:1px 6px;" data-i18n-title="licenses.version" title="Forzar actualizaci&oacute;n del service worker">&#x21bb;</button></p>
                     <p data-i18n="licenses.license">License: MIT</p>
                     <p style="margin-bottom:12px;" data-i18n="licenses.copyright">Copyright (c) 2026 XE2LDL - Luis</p>
                     <p style="color:var(--text-bright);font-weight:600;margin-top:16px;" data-i18n="licenses.third_party">Third-party licenses:</p>
@@ -424,16 +424,6 @@
         </div>
     </div>
 
-    <div class="modal-overlay" id="symbolPickerModal">
-        <div class="modal" style="max-width:500px;">
-            <h3 data-i18n="modal.aprs_symbol">APRS Symbol</h3>
-            <div id="symbolPickerContent"></div>
-            <div class="btn-row" style="margin-top:12px;">
-                <button class="btn btn-outline" onclick="toggleModal('symbolPickerModal',false)" data-i18n="btn.cancel">Cancel</button>
-            </div>
-        </div>
-    </div>
-
     <div class="toast" id="toast"></div>
 
     <div class="modal-overlay" id="beaconModal">
@@ -466,6 +456,16 @@
             <div class="btn-row">
                 <button class="btn btn-outline" onclick="toggleModal('beaconModal',false)" data-i18n="btn.cancel">Cancelar</button>
                 <button class="btn btn-primary" onclick="saveBeaconConfig()" data-i18n="btn.confirm">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="symbolPickerModal">
+        <div class="modal" style="max-width:500px;">
+            <h3 data-i18n="modal.aprs_symbol">APRS Symbol</h3>
+            <div id="symbolPickerContent"></div>
+            <div class="btn-row" style="margin-top:12px;">
+                <button class="btn btn-outline" onclick="toggleModal('symbolPickerModal',false)" data-i18n="btn.cancel">Cancel</button>
             </div>
         </div>
     </div>

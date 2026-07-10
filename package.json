@@ -1,6 +1,6 @@
 {
   "name": "orbitaprs",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "private": true,
   "description": "**APRS satellite and terrestrial communication app** — works in the browser with Web Serial, Web Bluetooth, and WebUSB to connect to KISS TNCs and CH340 devices.",
   "main": "main.js",
