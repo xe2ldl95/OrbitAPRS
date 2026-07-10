@@ -1,3 +1,73 @@
+var _pendingAcks = [];
+var _ackTimer = null;
+var _recentAcked = {};
+
+function extractMsgId(info) {
+    if (!info) return null;
+    var m = info.match(/\{(\d{1,2})\}$/);
+    return m ? m[1] : null;
+}
+
+function startAckTimer() {
+    stopAckTimer();
+    _ackTimer = setInterval(processPendingAcks, 30000);
+}
+
+function stopAckTimer() {
+    if (_ackTimer) { clearInterval(_ackTimer); _ackTimer = null; }
+}
+
+function processPendingAcks() {
+    if (!state.tnc || !state.tnc.connected) return;
+    var now = Date.now();
+    var maxRetries = state.msgRetries || 3;
+    var remaining = [];
+    for (var i = 0; i < _pendingAcks.length; i++) {
+        var p = _pendingAcks[i];
+        if (now - p.lastSent < 30000) { remaining.push(p); continue; }
+        if (p.retries >= maxRetries) {
+            addTerminalLine('system', 'Message to ' + p.target + ' not acknowledged (msg #' + p.msgId + ')');
+            continue;
+        }
+        p.retries++;
+        p.lastSent = now;
+        var sourceCall = state.myCall;
+        var destCall = isSatMode() ? state.tocallMsgSat : state.tocallMsgTer;
+        var fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, p.info);
+        try {
+            var ax25 = buildAX25Frame({
+                infoField: p.info,
+                sourceCall: sourceCall,
+                destCall: destCall,
+                digipath: state.digipath,
+                fullPacket: fullPacket,
+            });
+            state.tnc.send(ax25);
+            addTerminalLine('tx', fullPacket + ' [retry ' + p.retries + '/' + maxRetries + ']');
+        } catch (e) {
+            showToast(t('toast.tx_error') + ' ' + e.message, true);
+        }
+        remaining.push(p);
+    }
+    _pendingAcks = remaining;
+    if (_pendingAcks.length === 0) stopAckTimer();
+}
+
+function confirmAck(target, msgId) {
+    var idx = -1;
+    for (var i = 0; i < _pendingAcks.length; i++) {
+        if (_pendingAcks[i].target === target && _pendingAcks[i].msgId === msgId) {
+            idx = i; break;
+        }
+    }
+    if (idx >= 0) {
+        _pendingAcks.splice(idx, 1);
+        addTerminalLine('system', 'ACK received from ' + target + ' for msg #' + msgId);
+        showToast(t('toast.msg_acknowledged') + target);
+        if (_pendingAcks.length === 0) stopAckTimer();
+    }
+}
+
 function resolveMacroTemplate(macro, target) {
     const parts = target ? target.trim().split(/\s+/) : [];
     const tcall = (parts[0] || '').toUpperCase();
@@ -44,7 +114,7 @@ function renderMacroEditor() {
             '<input class="macro-name" value="' + escapeHTML(m.name || '') + '" placeholder="Name" onchange="updateMacro(' + i + ',\'name\',this.value)" maxlength="16">' +
             '<input class="macro-template" value="' + escapeHTML(m.template || '') + '" placeholder="Template" onchange="updateMacro(' + i + ',\'template\',this.value)" maxlength="200">' +
             '<label class="macro-log" title="Auto-log QSO when sent"><input type="checkbox" onchange="updateMacro(' + i + ',\'logQSO\',this.checked)"' + (m.logQSO ? ' checked' : '') + '>📝</label>' +
-            '<button class="macro-symbol-btn" onclick="openSymbolPicker(' + i + ')" title="Select APRS symbol: ' + (m.symbolTable || '/') + (m.symbol || '[') + '">' + escapeHTML((m.symbolTable || '/') + (m.symbol || '[')) + '</button>' +
+            ((m.template || '').charAt(0) === '=' ? '<button class="macro-symbol-btn" onclick="openSymbolPicker(' + i + ')" title="Select APRS symbol: ' + (m.symbolTable || '/') + (m.symbol || '[') + '">' + escapeHTML((m.symbolTable || '/') + (m.symbol || '[')) + '</button>' : '') +
             '<button class="macro-del" onclick="removeMacro(' + i + ')" title="Remove">✕</button>' +
         '</div>'
     ).join('');
@@ -54,6 +124,7 @@ function updateMacro(idx, field, value) {
     if (idx < 0 || idx >= state.macros.length) return;
     state.macros[idx][field] = value;
     renderQuickActions();
+    if (field === 'template') renderMacroEditor();
 }
 
 function addMacro() {
@@ -71,6 +142,7 @@ function removeMacro(idx) {
 }
 
 var _symbolPickerIdx = -1;
+var _symbolPickerBeacon = false;
 
 function jsEsc(str) {
     return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
@@ -78,13 +150,32 @@ function jsEsc(str) {
 
 function openSymbolPicker(idx) {
     _symbolPickerIdx = idx;
+    _symbolPickerBeacon = false;
     var m = state.macros[idx];
     if (!m) return;
     renderSymbolPicker(m.symbolTable || '/', m.symbol || '[');
     toggleModal('symbolPickerModal', true);
 }
 
+function openBeaconSymbolPicker() {
+    _symbolPickerBeacon = true;
+    renderSymbolPicker(state.beaconSymbolTable || '/', state.beaconSymbolCode || '[');
+    toggleModal('symbolPickerModal', true);
+}
+
 function selectSymbol(table, sym) {
+    if (_symbolPickerBeacon) {
+        state.beaconSymbolTable = table;
+        state.beaconSymbolCode = sym;
+        var btn = document.getElementById('beaconSymbolBtn');
+        if (btn) {
+            var name = getSymbolName(table, sym);
+            btn.textContent = table + ' ' + sym + ' ' + name;
+        }
+        _symbolPickerBeacon = false;
+        toggleModal('symbolPickerModal', false);
+        return;
+    }
     var m = state.macros[_symbolPickerIdx];
     if (!m) return;
     m.symbolTable = table;
@@ -92,6 +183,12 @@ function selectSymbol(table, sym) {
     renderMacroEditor();
     renderQuickActions();
     toggleModal('symbolPickerModal', false);
+}
+
+function getSymbolName(table, sym) {
+    var key = table === '/' ? 'primary' : 'alternate';
+    var syms = (typeof APRS_SYMBOLS !== 'undefined') ? APRS_SYMBOLS[key] : null;
+    return (syms && syms[sym]) ? syms[sym] : sym;
 }
 
 function renderSymbolPicker(activeTable, activeSymbol) {
@@ -189,6 +286,13 @@ function sendQuickAction(action) {
                         addTerminalLine('system', t('terminal.qso_pending') + tc.toUpperCase());
                     }
                 }
+            }
+            var msgId = extractMsgId(info);
+            if (info[0] === ':' && msgId && state.msgRetries > 0) {
+                var enqTarget = target.split(' ')[0];
+                _pendingAcks.push({ target: enqTarget, msgId: msgId, info: info, retries: 0, lastSent: Date.now() });
+                if (_pendingAcks.length > 50) _pendingAcks.shift();
+                if (!_ackTimer) startAckTimer();
             }
         } catch (e) {
             showToast(t('toast.tx_error') + ' ' + e.message, true);
@@ -294,6 +398,12 @@ function toggleModal(id, show) {
             document.getElementById('beaconShareLocation').checked = state.beaconShareLocation;
             document.getElementById('beaconMessage').value = state.beaconMessage;
             document.getElementById('beaconToggle').checked = state.beaconEnabled;
+            var btn = document.getElementById('beaconSymbolBtn');
+            if (btn) {
+                var tbl = state.beaconSymbolTable || '/';
+                var sym = state.beaconSymbolCode || '[';
+                btn.textContent = tbl + ' ' + sym + ' ' + getSymbolName(tbl, sym);
+            }
         }
     } else {
         modal.classList.remove('active');
@@ -440,6 +550,39 @@ function tncConnect() {
             var msgBody = extractMessageBody(pkt.info);
             if (msgBody && msgDestIsForUs(pkt.info)) {
                 addChatMessage(pkt.source, msgBody, 'received');
+            }
+        }
+        // ACK: auto-respond to messages with {xx} directed to us
+        if (pkt.info && pkt.info[0] === ':' && msgDestIsForUs(pkt.info)) {
+            var msgId = extractMsgId(pkt.info);
+            if (msgId && !_recentAcked[pkt.source + ':' + msgId]) {
+                _recentAcked[pkt.source + ':' + msgId] = true;
+                var ackInfo = ':' + pkt.source.padEnd(9, ' ') + ':ack' + msgId;
+                var ackFull = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, ackInfo);
+                if (state.tnc && state.tnc.connected) {
+                    try {
+                        var ackPacket = buildAX25Frame({
+                            infoField: ackInfo, sourceCall: state.myCall,
+                            destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: ackFull,
+                        });
+                        state.tnc.send(ackPacket);
+                        addTerminalLine('tx', ackFull);
+                    } catch (e) {}
+                }
+                // Clean up old entries
+                var keys = Object.keys(_recentAcked);
+                if (keys.length > 200) delete _recentAcked[keys[0]];
+            }
+        }
+        // ACK/REJ: confirm pending messages when ACK received
+        if (pkt.info && pkt.info[0] === ':') {
+            var secondColon = pkt.info.indexOf(':', 1);
+            if (secondColon > 0) {
+                var body = pkt.info.slice(secondColon + 1);
+                var ackMatch = body.match(/^ack(\d{1,2})$/i);
+                if (ackMatch && msgDestIsForUs(pkt.info)) {
+                    confirmAck(pkt.source, ackMatch[1]);
+                }
             }
         }
         // Chat: handle third-party packets (}SOURCE>DEST:info)
@@ -803,6 +946,11 @@ function sendFreeTextPacket() {
     if (!isSatMode()) {
         addChatMessage(call, raw, 'sent');
     }
+    if (state.msgRetries > 0) {
+        _pendingAcks.push({ target: call, msgId: seq, info: info, retries: 0, lastSent: Date.now() });
+        if (_pendingAcks.length > 50) _pendingAcks.shift();
+        if (!_ackTimer) startAckTimer();
+    }
 }
 
 // ── Tone calibration via KISS SetHardware ──
@@ -1164,15 +1312,15 @@ function stopBeaconTimer() {
 
 function sendBeaconPacket() {
     if (state.myCall === 'N0CALL') return;
-    var lat = state.beaconShareLocation ? state.myLat : 0;
-    var lon = state.beaconShareLocation ? state.myLon : 0;
-    var aprsLat = latToAPRS(lat);
-    var aprsLon = lonToAPRS(lon);
-    var symbolTable = '/';
-    var symbol = '[';
-    var info = '=' + aprsLat + symbolTable + aprsLon + symbol;
-    if (state.beaconMessage) {
-        info += ' ' + state.beaconMessage;
+    var info;
+    if (state.beaconShareLocation) {
+        var st = state.beaconSymbolTable || '/';
+        var sy = state.beaconSymbolCode || '[';
+        info = formatAPRSPosition(state.myLat, state.myLon, sy, st, state.beaconMessage);
+    } else if (state.beaconMessage) {
+        info = '>' + state.beaconMessage;
+    } else {
+        return;
     }
     var fullPacket = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, info);
     addTerminalLine('tx', fullPacket);

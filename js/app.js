@@ -78,6 +78,9 @@ const state = {
     beaconInterval: 300,
     beaconShareLocation: true,
     beaconMessage: '',
+    beaconSymbolTable: '/',
+    beaconSymbolCode: '[',
+    msgRetries: 3,
     lang: 'es',
 };
 
@@ -156,6 +159,7 @@ function init() {
     }
     if (typeof updateBeaconState === 'function') updateBeaconState();
     if (typeof applyLanguage === 'function') applyLanguage();
+    if (typeof startAckTimer === 'function' && state.msgRetries > 0) startAckTimer();
 
     document.getElementById('terminal').innerHTML =
         '<div class="line system"><span class="timestamp">[READY]</span> ' + t('terminal.ready') + '</div>';
@@ -267,6 +271,9 @@ function loadSettings() {
                 state.beaconInterval = s.beaconInterval || 300;
                 state.beaconShareLocation = s.beaconShareLocation !== false;
                 state.beaconMessage = s.beaconMessage || '';
+                state.beaconSymbolTable = s.beaconSymbolTable || '/';
+                state.beaconSymbolCode = s.beaconSymbolCode || '[';
+                state.msgRetries = s.msgRetries !== undefined ? s.msgRetries : 3;
                 state.lang = s.lang || 'es';
             } catch (e) {}
         }
@@ -320,6 +327,9 @@ function populateSettingsFields() {
     if (document.getElementById('setLang')) {
         document.getElementById('setLang').value = state.lang || 'es';
     }
+    if (document.getElementById('setMsgRetries')) {
+        document.getElementById('setMsgRetries').value = state.msgRetries;
+    }
     updateTocallFields();
 }
 
@@ -341,6 +351,11 @@ function saveSettings() {
     state.myGrid = latLonToGrid(state.myLat, state.myLon, 4);
     document.getElementById('setGrid').value = state.myGrid;
     state.elevationOffset = parseFloat(document.getElementById('setElevationOffset').value) || 0;
+    var retriesEl = document.getElementById('setMsgRetries');
+    if (retriesEl) {
+        var v = parseInt(retriesEl.value, 10);
+        state.msgRetries = isNaN(v) ? 3 : Math.max(0, Math.min(10, v));
+    }
     state.tncType = document.getElementById('setTncType').value || 'serial';
     state.tncHost = document.getElementById('setTncHost').value.trim() || 'localhost';
     state.tncPort = document.getElementById('setTncPort').value.trim() || '8001';
@@ -557,6 +572,9 @@ function persistSettings() {
             beaconInterval: state.beaconInterval,
             beaconShareLocation: state.beaconShareLocation,
             beaconMessage: state.beaconMessage,
+            beaconSymbolTable: state.beaconSymbolTable,
+            beaconSymbolCode: state.beaconSymbolCode,
+            msgRetries: state.msgRetries,
             lang: state.lang,
         }));
     } catch (e) {}

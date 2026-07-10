@@ -238,6 +238,10 @@
             <div class="tab-content" id="tab-general" style="display:none;">
                 <div class="form-group"><label data-i18n="label.elevation_offset">Elevation offset (beta when phone flat) <span id="betaRawDisplay" style="color:#f0a030;font-weight:400;"></span></label><input type="number" id="setElevationOffset" value="0" step="0.1"></div>
                 <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+                    <label style="margin:0;flex:1;" data-i18n="label.msg_retries">Message retries (0-10)</label>
+                    <input type="number" id="setMsgRetries" value="3" min="0" max="10" step="1" style="width:70px;">
+                </div>
+                <div class="form-group" style="display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:12px;">
                     <label style="margin:0;flex:1;" data-i18n="settings.lang_label">Idioma / Language</label>
                     <select id="setLang" onchange="setLanguage(this.value)" style="width:auto;">
                         <option value="es" data-i18n="settings.lang_es">Español</option>
@@ -447,6 +451,10 @@
             <div class="form-group">
                 <label data-i18n="label.message_opt">Mensaje (opcional)</label>
                 <input type="text" id="beaconMessage" data-i18n-placeholder="label.message_placeholder" placeholder="Mensaje libre..." maxlength="50">
+            </div>
+            <div class="form-group" style="display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:8px;">
+                <label style="margin:0;flex:1;font-size:0.8em;color:#888;" data-i18n="label.beacon_symbol">APRS Symbol</label>
+                <button class="btn btn-sm btn-outline" id="beaconSymbolBtn" onclick="openBeaconSymbolPicker()" style="font-family:var(--font-mono);min-width:100px;">/ [</button>
             </div>
             <div class="form-group" style="display:flex;align-items:center;gap:12px;padding-top:8px;border-top:1px solid var(--border);">
                 <label style="margin:0;flex:1;font-weight:600;color:var(--text-bright);" data-i18n="label.beacon">Beacon</label>
