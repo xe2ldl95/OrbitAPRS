@@ -4,7 +4,7 @@ var _recentAcked = {};
 
 function extractMsgId(info) {
     if (!info) return null;
-    var m = info.match(/\{(\d{1,2})\}$/);
+    var m = info.match(/\{(\d{1,2})\}?\s*$/);
     return m ? m[1] : null;
 }
 
