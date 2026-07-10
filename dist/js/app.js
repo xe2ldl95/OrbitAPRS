@@ -3,7 +3,7 @@ const DEFAULT_MACROS = [
     { id: 'm1', name: 'Rpt', icon: '📻', template: ':%C:UR %RST{%N',                 logQSO: true,  symbolTable: '/', symbol: '[' },
     { id: 'm2', name: '73',  icon: '💬', template: ':%C:QSL TU 73{%N',               logQSO: true,  symbolTable: '/', symbol: '[' },
     { id: 'm3', name: 'Msg', icon: '✉️', template: ':CQ:via %S{%N',            logQSO: false, symbolTable: '/', symbol: '[' },
-    { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}%T{lon}%Y Por',              logQSO: false, symbolTable: '/', symbol: '[' },
+    { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}%T{lon}%Y OrbitAPRS',              logQSO: false, symbolTable: '/', symbol: '[' },
 ];
 
 function isSatMode() {
