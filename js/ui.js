@@ -555,8 +555,10 @@ function tncConnect() {
         // ACK: auto-respond to messages with {xx} directed to us
         if (pkt.info && pkt.info[0] === ':' && msgDestIsForUs(pkt.info)) {
             var msgId = extractMsgId(pkt.info);
-            if (msgId && !_recentAcked[pkt.source + ':' + msgId]) {
-                _recentAcked[pkt.source + ':' + msgId] = true;
+            var ackKey = pkt.source + ':' + msgId;
+            var lastAck = _recentAcked[ackKey] || 0;
+            if (msgId && Date.now() - lastAck > 10000) {
+                _recentAcked[ackKey] = Date.now();
                 var ackInfo = ':' + pkt.source.padEnd(9, ' ') + ':ack' + msgId;
                 var ackFull = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, ackInfo);
                 if (state.tnc && state.tnc.connected) {
@@ -569,9 +571,14 @@ function tncConnect() {
                         addTerminalLine('tx', ackFull);
                     } catch (e) {}
                 }
-                // Clean up old entries
+                // Prune stale entries (>1h old)
                 var keys = Object.keys(_recentAcked);
-                if (keys.length > 200) delete _recentAcked[keys[0]];
+                if (keys.length > 200) {
+                    var cutoff = Date.now() - 3600000;
+                    for (var ki = 0; ki < keys.length; ki++) {
+                        if (_recentAcked[keys[ki]] < cutoff) delete _recentAcked[keys[ki]];
+                    }
+                }
             }
         }
         // ACK/REJ: confirm pending messages when ACK received
