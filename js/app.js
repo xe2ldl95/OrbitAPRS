@@ -81,6 +81,7 @@ const state = {
     beaconMessage: '',
     beaconSymbolTable: '/',
     beaconSymbolCode: '[',
+    beaconDestCall: 'GPS',
     msgRetries: 3,
     lang: 'es',
 };
@@ -275,6 +276,7 @@ function loadSettings() {
                 state.beaconMessage = s.beaconMessage || '';
                 state.beaconSymbolTable = s.beaconSymbolTable || '/';
                 state.beaconSymbolCode = s.beaconSymbolCode || '[';
+                state.beaconDestCall = s.beaconDestCall || 'GPS';
                 state.msgRetries = s.msgRetries !== undefined ? s.msgRetries : 3;
                 state.lang = s.lang || 'es';
             } catch (e) {}
@@ -577,6 +579,7 @@ function persistSettings() {
             beaconMessage: state.beaconMessage,
             beaconSymbolTable: state.beaconSymbolTable,
             beaconSymbolCode: state.beaconSymbolCode,
+            beaconDestCall: state.beaconDestCall,
             msgRetries: state.msgRetries,
             lang: state.lang,
         }));

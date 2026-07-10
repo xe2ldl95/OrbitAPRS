@@ -9,7 +9,6 @@ function msgDestIsForUs(info) {
 }
 
 function logPacketFromTNC(parsed) {
-    // Skip internet-routed packets (TCPIP* / NOGATE in digi path)
     if (parsed.digiPath && parsed.digiPath.some(function(d) {
         return /^(TCPIP|NOGATE)/i.test(d);
     })) {
@@ -17,9 +16,7 @@ function logPacketFromTNC(parsed) {
         return;
     }
 
-    // Bidirectional QSO confirmation
     if (state.selectedSat && state.pendingQSOs.length > 0) {
-        // Match against both full callsign (+SSID) and base (no SSID)
         var matchKey = parsed.source;
         var matchBase = parsed.sourceBase || parsed.source;
         var pendingIdx = state.pendingQSOs.findIndex(function(p) {
@@ -29,9 +26,19 @@ function logPacketFromTNC(parsed) {
             var pending = state.pendingQSOs[pendingIdx];
             var aprsData = extractAPRSData(parsed.info);
             var remoteGrid = aprsData.grid || pending.grid;
-            logQSO(pending.satId, parsed.source, remoteGrid,
-                state.rstDefault, state.rstDefault, 'confirmed');
-                addTerminalLine('system', t('toast.qso_confirmed') + parsed.source + ' grid ' + remoteGrid);
+
+            var secondColon = parsed.info.indexOf(':', 1);
+            var body = secondColon > 0 ? parsed.info.slice(secondColon + 1) : '';
+            var rstRcvdReal = extractRST(body) || state.rstDefault;
+            var rstSentReal = pending.rstSent || state.rstDefault;
+
+            logQSO(
+                pending.satId, parsed.source, remoteGrid,
+                rstSentReal, rstRcvdReal, 'confirmed',
+                body.trim() || null, null,
+                aprsData.lat || null, aprsData.lon || null
+            );
+            addTerminalLine('system', t('toast.qso_confirmed') + parsed.source + ' grid ' + remoteGrid);
             showToast(t('toast.qso_confirmed') + parsed.source);
             state.pendingQSOs.splice(pendingIdx, 1);
             persistSettings();

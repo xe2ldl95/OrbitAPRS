@@ -368,6 +368,8 @@ body {
     font-family: var(--font-mono);
 }
 .chat-bubble.sent { align-self: flex-end; background: #1a3a2a; color: var(--green); border-bottom-right-radius: 2px; }
+.chat-bubble.sent.pending { opacity: 0.7; color: var(--orange); border-left: 3px solid var(--orange); }
+.chat-bubble.sent.confirmed { border-left: 3px solid var(--green); }
 .chat-bubble.received { align-self: flex-start; background: #1a2434; color: #81d4fa; border-bottom-left-radius: 2px; }
 .chat-bubble-time { font-size: 0.65em; color: #555; margin-top: 2px; }
 .chat-bubble.sent .chat-bubble-time { text-align: right; }
@@ -375,6 +377,27 @@ body {
     display: flex; align-items: center; justify-content: center;
     height: 100%; color: #444; font-size: 0.85em;
 }
+
+.chat-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 8px; margin: -10px -10px 6px -10px;
+    border-bottom: 1px solid var(--border);
+    background: #0d111a;
+    flex-shrink: 0;
+}
+.chat-header-call {
+    font-size: 0.85em; font-weight: 700; color: var(--text-bright);
+    font-family: var(--font-mono);
+}
+.chat-ack-toggle {
+    margin-left: auto; font-size: 0.7em; font-family: var(--font-mono);
+    background: #151d28; border: 1px solid var(--border);
+    color: #666; padding: 2px 8px; border-radius: 4px;
+    cursor: pointer; transition: all 0.15s;
+}
+.chat-ack-toggle:hover { background: #1a2434; color: #888; }
+.chat-ack-toggle.on { color: var(--green); border-color: var(--green); background: #1a3a2a; }
+.chat-ack-toggle.on:hover { background: #1a4a2a; }
 
 /* Map markers (Leaflet divIcon) */
 .map-sat-marker {

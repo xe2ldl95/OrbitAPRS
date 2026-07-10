@@ -111,10 +111,10 @@
             document.getElementById('satStatusDot').className = 'status-dot active';
             document.getElementById('satNameDisplay').textContent = t('label.terrestrial');
             var dopEl = document.getElementById('utcDoppler');
-            dopEl.innerHTML = state.txFreq.toFixed(3) + ' MHz';
-            dopEl.style.display = 'inline';
-            document.getElementById('utcDate').style.display = 'none';
-            document.getElementById('utcTime').style.display = 'none';
+            dopEl.textContent = '';
+            dopEl.style.display = 'none';
+            document.getElementById('utcDate').style.display = 'inline';
+            document.getElementById('utcTime').style.display = 'inline';
             return;
         }
 

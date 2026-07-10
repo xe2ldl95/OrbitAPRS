@@ -11,6 +11,16 @@ function lonToAPRS(lon) {
 }
 
 function buildAX25Frame(packet) {
+    if (packet.sourceCall && !validateCallsign(packet.sourceCall)) {
+        throw new Error('Invalid source callsign: ' + packet.sourceCall);
+    }
+    if (packet.destCall && !validateCallsign(packet.destCall)) {
+        throw new Error('Invalid destination callsign: ' + packet.destCall);
+    }
+    const info = stringToBytes(packet.infoField);
+    if (info.length > 256) {
+        throw new Error('Info field exceeds 256 bytes (' + info.length + ')');
+    }
     const hasDigi = packet.digipath && packet.digipath !== 'DIRECT';
     const dest = encodeAX25Address(packet.destCall || 'APRS', 0);
     const src = encodeAX25Address(packet.sourceCall, hasDigi ? 0x00 : 0x01);
@@ -23,7 +33,6 @@ function buildAX25Frame(packet) {
         });
     }
     const ctrl = 0x03, pid = 0xF0;
-    const info = stringToBytes(packet.infoField);
     let frame = [...dest, ...src, ...digi, ctrl, pid, ...info];
     const fcs = calcFCS(frame);
     frame.push(fcs & 0xFF, (fcs >> 8) & 0xFF);
@@ -52,6 +61,30 @@ function calcFCS(data) {
     return (~fcs) & 0xFFFF;
 }
 
+function validateFCS(frame) {
+    if (frame.length < 18) return false;
+    const data = frame.slice(0, -2);
+    const fcsRecv = frame[frame.length - 2] | (frame[frame.length - 1] << 8);
+    return calcFCS(data) === fcsRecv;
+}
+
+function validateCallsign(call) {
+    if (!call || call.length === 0) return false;
+    let base = call, ssid = null;
+    const dash = call.indexOf('-');
+    if (dash >= 0) {
+        base = call.slice(0, dash);
+        ssid = parseInt(call.slice(dash + 1), 10);
+        if (isNaN(ssid) || ssid < 0 || ssid > 15) return false;
+    }
+    if (base.length < 1 || base.length > 6) return false;
+    for (let i = 0; i < base.length; i++) {
+        const c = base.charCodeAt(i);
+        if (!((c >= 48 && c <= 57) || (c >= 65 && c <= 90) || (c >= 97 && c <= 122))) return false;
+    }
+    return true;
+}
+
 function stringToBytes(str) {
     return Array.from(str).map(c => c.charCodeAt(0) & 0xFF);
 }
@@ -68,13 +101,20 @@ function _ax25AddrAt(data, off) {
 }
 
 function parseAX25Frame(bytes) {
-    if (bytes.length < 18) return null;
-    const data = bytes.slice(0, -2);
+    if (bytes.length < 16) return null;
+    let data;
+    if (bytes.length >= 18 && validateFCS(bytes)) {
+        data = bytes.slice(0, -2);
+    } else {
+        data = bytes;
+    }
     let addrEnd = 0;
     for (let i = 6; i < data.length; i += 7) {
         if (data[i] & 0x01) { addrEnd = i + 1; break; }
     }
     if (addrEnd < 14) return null;
+    if (data[addrEnd] !== 0x03) return null;
+    if (data[addrEnd + 1] !== 0xF0) return null;
     const dst = _ax25AddrAt(data, 0);
     const src = _ax25AddrAt(data, 7);
     const digiPath = [];
@@ -123,20 +163,26 @@ function padTarget(target) {
 
 function formatAPRSMessage(target, message, msgId) {
     const t = padTarget(target);
-    let info = ':' + t + ':' + message;
+    let info = ':' + t + ':' + sanitizeAPRSText(message);
     if (msgId !== undefined && msgId !== null && msgId !== '') {
-        info += '{' + String(msgId).padStart(2, '0');
+        let id = String(msgId);
+        if (id.length > 4) id = id.slice(-4);
+        info += '{' + id;
     }
     return info;
 }
 
-function formatAPRSPosition(lat, lon, symbol, symbolTable, comment) {
+function formatAPRSPosition(lat, lon, symbol, symbolTable, comment, altitude) {
     const latStr = latToAPRS(lat);
     const lonStr = lonToAPRS(lon);
     const st = symbolTable || '/';
     const sy = symbol || '-';
     let info = '=' + latStr + st + lonStr + sy;
-    if (comment) info += comment;
+    if (comment) info += sanitizeAPRSText(comment);
+    if (altitude !== undefined && altitude !== null && !isNaN(altitude)) {
+        const pies = Math.round(altitude * 3.28084);
+        info += '/A=' + String(pies).padStart(6, '0');
+    }
     return info;
 }
 
@@ -150,7 +196,7 @@ function formatAPRSFrame(source, dest, digipath, infoField) {
 function extractAPRSData(info) {
     const result = { grid: null, lat: null, lon: null, comment: null };
     if (!info) return result;
-    if (info[0] === '=' || info[0] === '@' || info[0] === '!') {
+    if (info[0] === '=' || info[0] === '@' || info[0] === '!' || info[0] === '/') {
         const body = info.slice(1);
         const latLonMatch = body.match(/(\d{4}\.\d{2}[NS])(.)(\d{5}\.\d{2}[EW])/);
         if (latLonMatch) {
@@ -169,7 +215,7 @@ function extractAPRSData(info) {
     }
     if (info[0] === ':') {
         const secondColon = info.indexOf(':', 1);
-        const body = secondColon > 0 && info.length > secondColon + 1 ? info.slice(secondColon + 1).replace(/\{[\da-zA-Z]{1,2}$/, '').trim() : '';
+        const body = secondColon > 0 && info.length > secondColon + 1 ? info.slice(secondColon + 1).replace(/\{[a-zA-Z0-9]{1,4}$/, '').trim() : '';
         const gridKeyword = body.match(/(?:^|\s)(?:GRID|UR)\s+([A-Ra-r]{2}[0-9]{2}(?:[A-Xa-x]{2})?)/i);
         if (gridKeyword) result.grid = gridKeyword[1].toUpperCase();
         if (!result.grid) {
@@ -183,6 +229,49 @@ function extractAPRSData(info) {
         if (rstMatch) result.comment = 'RST: ' + rstMatch[1];
     }
     return result;
+}
+
+function sanitizeAPRSText(text) {
+    if (!text) return text;
+    return text.replace(/[|~]/g, '');
+}
+
+function freqToBand(freq) {
+    if (!freq) return 'SAT';
+    if (freq >= 144 && freq < 148) return '2M';
+    if (freq >= 430 && freq < 440) return '70CM';
+    if (freq >= 1240 && freq < 1300) return '23CM';
+    if (freq >= 2300 && freq < 2400) return '13CM';
+    if (freq >= 5650 && freq < 5925) return '6CM';
+    if (freq >= 10000 && freq < 10500) return '3CM';
+    return 'SAT';
+}
+
+function isValidMaidenhead(grid) {
+    if (!grid || grid.length < 4) return false;
+    var c0 = grid.charCodeAt(0), c1 = grid.charCodeAt(1);
+    if (c0 < 65 || c0 > 82 || c1 < 65 || c1 > 82) return false;
+    var c2 = grid.charCodeAt(2), c3 = grid.charCodeAt(3);
+    if (c2 < 48 || c2 > 57 || c3 < 48 || c3 > 57) return false;
+    if (grid.length >= 6) {
+        var c4 = grid.charCodeAt(4), c5 = grid.charCodeAt(5);
+        if (c4 < 97 || c4 > 120 || c5 < 97 || c5 > 120) return false;
+    }
+    return true;
+}
+
+function extractRST(body) {
+    if (!body) return null;
+    var m = body.match(/RST\s+(\d{2,3})/i);
+    if (m) return m[1];
+    m = body.match(/\b(\d{3})\b/);
+    if (m) {
+        var digits = m[1];
+        if (digits[0] >= '1' && digits[0] <= '5' && digits[1] >= '1' && digits[1] <= '9' && digits[2] >= '1' && digits[2] <= '9') {
+            return digits;
+        }
+    }
+    return null;
 }
 
 var APRS_SYMBOLS = {

@@ -74,12 +74,14 @@ const state = {
     customPaths: [],
     chatList: [],
     chatActive: null,
+    chatAck: {},
     beaconEnabled: false,
     beaconInterval: 300,
     beaconShareLocation: true,
     beaconMessage: '',
     beaconSymbolTable: '/',
     beaconSymbolCode: '[',
+    beaconDestCall: 'GPS',
     msgRetries: 3,
     lang: 'es',
 };
@@ -267,12 +269,14 @@ function loadSettings() {
                 state.chatList = Array.isArray(s.chatList) ? s.chatList : [];
                 state.selectedSat = s.selectedSat || null;
                 state.chatActive = s.chatActive || null;
+                state.chatAck = s.chatAck || {};
                 state.beaconEnabled = s.beaconEnabled === true;
                 state.beaconInterval = s.beaconInterval || 300;
                 state.beaconShareLocation = s.beaconShareLocation !== false;
                 state.beaconMessage = s.beaconMessage || '';
                 state.beaconSymbolTable = s.beaconSymbolTable || '/';
                 state.beaconSymbolCode = s.beaconSymbolCode || '[';
+                state.beaconDestCall = s.beaconDestCall || 'GPS';
                 state.msgRetries = s.msgRetries !== undefined ? s.msgRetries : 3;
                 state.lang = s.lang || 'es';
             } catch (e) {}
@@ -568,12 +572,14 @@ function persistSettings() {
             heardStationsLimit: state.heardStationsLimit,
             selectedSat: state.selectedSat,
             chatActive: state.chatActive,
+            chatAck: state.chatAck,
             beaconEnabled: state.beaconEnabled,
             beaconInterval: state.beaconInterval,
             beaconShareLocation: state.beaconShareLocation,
             beaconMessage: state.beaconMessage,
             beaconSymbolTable: state.beaconSymbolTable,
             beaconSymbolCode: state.beaconSymbolCode,
+            beaconDestCall: state.beaconDestCall,
             msgRetries: state.msgRetries,
             lang: state.lang,
         }));

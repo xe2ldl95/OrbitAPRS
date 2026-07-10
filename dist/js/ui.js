@@ -4,13 +4,13 @@ var _recentAcked = {};
 
 function extractMsgId(info) {
     if (!info) return null;
-    var m = info.match(/\{(\d{1,2})\}$/);
+    var m = info.match(/\{([a-zA-Z0-9]{1,4})\}?\s*$/);
     return m ? m[1] : null;
 }
 
 function startAckTimer() {
     stopAckTimer();
-    _ackTimer = setInterval(processPendingAcks, 30000);
+    _ackTimer = setInterval(processPendingAcks, 5000);
 }
 
 function stopAckTimer() {
@@ -24,13 +24,26 @@ function processPendingAcks() {
     var remaining = [];
     for (var i = 0; i < _pendingAcks.length; i++) {
         var p = _pendingAcks[i];
-        if (now - p.lastSent < 30000) { remaining.push(p); continue; }
+        if (now < p.nextRetry) { remaining.push(p); continue; }
         if (p.retries >= maxRetries) {
+            var heard = state.heardStations.some(function(s) {
+                return s.call === p.target || s.call.split('-')[0] === p.target.split('-')[0];
+            });
+            if (heard) {
+                p.retries = 0;
+                p.interval = 15000;
+                p.nextRetry = now + 15000;
+                remaining.push(p);
+                addTerminalLine('system', 'Message-on-Heard: retrying to ' + p.target + ' (msg #' + p.msgId + ')');
+                continue;
+            }
             addTerminalLine('system', 'Message to ' + p.target + ' not acknowledged (msg #' + p.msgId + ')');
             continue;
         }
         p.retries++;
         p.lastSent = now;
+        p.interval = Math.min(p.interval * 2, 180000);
+        p.nextRetry = now + p.interval;
         var sourceCall = state.myCall;
         var destCall = isSatMode() ? state.tocallMsgSat : state.tocallMsgTer;
         var fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, p.info);
@@ -66,6 +79,41 @@ function confirmAck(target, msgId) {
         showToast(t('toast.msg_acknowledged') + target);
         if (_pendingAcks.length === 0) stopAckTimer();
     }
+    // Confirm pending chat message
+    var key = target.split('-')[0].toUpperCase();
+    var msgs = _chatMessages[key];
+    if (msgs) {
+        for (var mi = msgs.length - 1; mi >= 0; mi--) {
+            if (msgs[mi].msgId === msgId && msgs[mi].status === 'pending') {
+                msgs[mi].status = 'confirmed';
+                saveChatMessages();
+                if (key === state.chatActive) renderChatMessages(key);
+                break;
+            }
+        }
+    }
+}
+
+function sendRejResponse(sourceCall, msgId) {
+    var info = ':' + sourceCall.padEnd(9, ' ') + ':rej' + msgId;
+    var fullPacket = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, info);
+    if (state.tnc && state.tnc.connected) {
+        try {
+            var ax25 = buildAX25Frame({
+                infoField: info, sourceCall: state.myCall,
+                destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: fullPacket,
+            });
+            state.tnc.send(ax25);
+            addTerminalLine('tx', fullPacket);
+        } catch (e) {}
+    }
+}
+
+function purgeInactiveStations() {
+    var now = Date.now();
+    state.heardStations = state.heardStations.filter(function(s) {
+        return now - s.lastHeard < 7200000;
+    });
 }
 
 function resolveMacroTemplate(macro, target) {
@@ -232,22 +280,25 @@ function sendQuickAction(action) {
         return;
     }
     let info = resolveMacroTemplate(macro, target);
-    // APRS message formatting (type ':'): pad destination to 9 chars, ensure {xx sequence
+    // APRS message formatting (type ':'): pad destination to 9 chars, optionally add {xxxx sequence
     if (info[0] === ':') {
         const secondColon = info.indexOf(':', 1);
+        let ackEnabled = false;
         if (secondColon > 1 && secondColon < 12) {
             const dest = info.slice(1, secondColon);
             const body = info.slice(secondColon + 1);
-            const msgIdMatch = body.match(/\{(\d{1,2})$/);
+            const msgIdMatch = body.match(/\{([a-zA-Z0-9]{1,4})$/);
             const msgId = msgIdMatch ? msgIdMatch[1] : null;
             const msg = msgIdMatch ? body.slice(0, body.lastIndexOf('{')) : body;
-            info = formatAPRSMessage(dest, msg, msgId || String(state.msgIdCounter).padStart(2, '0'));
+            const destBase = dest.split('-')[0].toUpperCase();
+            ackEnabled = state.chatAck[destBase] === true;
+            info = formatAPRSMessage(dest, msg, ackEnabled ? (msgId || String(state.msgIdCounter).padStart(4, '0')) : undefined);
         }
-        if (!/\{\d{2}$/.test(info)) {
-            const seq = String(state.msgIdCounter).padStart(2, '0');
+        if (ackEnabled && !/\{[a-zA-Z0-9]{1,4}$/.test(info)) {
+            const seq = String(state.msgIdCounter).padStart(4, '0');
             info += '{' + seq;
         }
-        state.msgIdCounter = (state.msgIdCounter % 99) + 1;
+        state.msgIdCounter = (state.msgIdCounter % 9999) + 1;
         persistSettings();
     }
     const sourceCall = state.myCall;
@@ -276,11 +327,14 @@ function sendQuickAction(action) {
                         p.call === tc.toUpperCase() && p.satId === state.selectedSat
                     );
                     if (existing < 0) {
+                        var msgBody = info.slice(info.indexOf(':', 1) + 1);
+                        var rstSentReal = extractRST(msgBody) || state.rstDefault;
                         state.pendingQSOs.push({
                             call: tc.toUpperCase(),
                             grid: tg.toUpperCase() || '--',
                             satId: state.selectedSat,
                             time: getUTCNow(),
+                            rstSent: rstSentReal,
                         });
                         persistSettings();
                         addTerminalLine('system', t('terminal.qso_pending') + tc.toUpperCase());
@@ -288,11 +342,15 @@ function sendQuickAction(action) {
                 }
             }
             var msgId = extractMsgId(info);
+            var enqTarget = target.split(' ')[0];
             if (info[0] === ':' && msgId && state.msgRetries > 0) {
-                var enqTarget = target.split(' ')[0];
-                _pendingAcks.push({ target: enqTarget, msgId: msgId, info: info, retries: 0, lastSent: Date.now() });
+                _pendingAcks.push({ target: enqTarget, msgId: msgId, info: info, retries: 0, lastSent: Date.now(), interval: 15000, nextRetry: Date.now() + 15000 });
                 if (_pendingAcks.length > 50) _pendingAcks.shift();
                 if (!_ackTimer) startAckTimer();
+            }
+            if (info[0] === ':' && !isSatMode()) {
+                var chatBody = extractMessageBody(info);
+                if (chatBody) addChatMessage(enqTarget, chatBody, 'sent', msgId, state.msgRetries > 0 && msgId ? 'pending' : null);
             }
         } catch (e) {
             showToast(t('toast.tx_error') + ' ' + e.message, true);
@@ -548,15 +606,17 @@ function tncConnect() {
         // Chat: store received messages directed to us (terrestrial only)
         if (pkt.info && pkt.info[0] === ':' && !isSatMode()) {
             var msgBody = extractMessageBody(pkt.info);
-            if (msgBody && msgDestIsForUs(pkt.info)) {
+            if (msgBody && msgDestIsForUs(pkt.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}$/i.test(msgBody)) {
                 addChatMessage(pkt.source, msgBody, 'received');
             }
         }
         // ACK: auto-respond to messages with {xx} directed to us
         if (pkt.info && pkt.info[0] === ':' && msgDestIsForUs(pkt.info)) {
             var msgId = extractMsgId(pkt.info);
-            if (msgId && !_recentAcked[pkt.source + ':' + msgId]) {
-                _recentAcked[pkt.source + ':' + msgId] = true;
+            var ackKey = pkt.source + ':' + msgId;
+            var lastAck = _recentAcked[ackKey] || 0;
+            if (msgId && Date.now() - lastAck > 10000) {
+                _recentAcked[ackKey] = Date.now();
                 var ackInfo = ':' + pkt.source.padEnd(9, ' ') + ':ack' + msgId;
                 var ackFull = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, ackInfo);
                 if (state.tnc && state.tnc.connected) {
@@ -569,19 +629,24 @@ function tncConnect() {
                         addTerminalLine('tx', ackFull);
                     } catch (e) {}
                 }
-                // Clean up old entries
+                // Prune stale entries (>1h old)
                 var keys = Object.keys(_recentAcked);
-                if (keys.length > 200) delete _recentAcked[keys[0]];
+                if (keys.length > 200) {
+                    var cutoff = Date.now() - 3600000;
+                    for (var ki = 0; ki < keys.length; ki++) {
+                        if (_recentAcked[keys[ki]] < cutoff) delete _recentAcked[keys[ki]];
+                    }
+                }
             }
         }
-        // ACK/REJ: confirm pending messages when ACK received
+        // ACK/REJ: confirm pending messages when ACK or REJ received
         if (pkt.info && pkt.info[0] === ':') {
             var secondColon = pkt.info.indexOf(':', 1);
             if (secondColon > 0) {
                 var body = pkt.info.slice(secondColon + 1);
-                var ackMatch = body.match(/^ack(\d{1,2})$/i);
+                var ackMatch = body.match(/^(ack|rej)([a-zA-Z0-9]{1,4})$/i);
                 if (ackMatch && msgDestIsForUs(pkt.info)) {
-                    confirmAck(pkt.source, ackMatch[1]);
+                    confirmAck(pkt.source, ackMatch[2]);
                 }
             }
         }
@@ -590,7 +655,7 @@ function tncConnect() {
             var tp = parseThirdPartyPacket(pkt.info);
             if (tp && tp.info[0] === ':') {
                 var msgBody = extractMessageBody(tp.info);
-                if (msgBody && msgDestIsForUs(tp.info)) {
+                if (msgBody && msgDestIsForUs(tp.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}$/i.test(msgBody)) {
                     addChatMessage(tp.source, msgBody, 'received');
                 }
             }
@@ -685,6 +750,7 @@ function clearHeardList() {
 }
 
 function renderHeardList() {
+    purgeInactiveStations();
     const heard = document.getElementById('heardList');
     if (!heard) return;
     if (state.heardStations.length === 0) {
@@ -711,28 +777,38 @@ function tncDisconnect() {
     }
 }
 
-function logQSO(satId, targetCall, targetGrid, rstSent, rstRcvd, status) {
-    const sat = satelliteDB.find(s => s.id === satId) || { name: 'Unknown', freq: state.txFreq };
+function logQSO(satId, targetCall, targetGrid, rstSent, rstRcvd, status, messageText, freqRX, targetLat, targetLon) {
+    const sat = satelliteDB.find(s => s.id === satId) || { name: 'Unknown', freq: state.txFreq, freqRX: null };
     const actualFreq = state.txFreq || sat.freq;
+    const actualFreqRX = freqRX || sat.freqRX || actualFreq;
     const targetPos = gridToLatLon(targetGrid);
     const dist = targetPos ? haversine(state.myLat, state.myLon, targetPos.lat, targetPos.lon) : null;
     const qso = {
         utc: getUTCNow(),
         utcShort: getUTCShort(),
+        timeOff: getUTCNow(),
         satellite: sat.name,
         satId: satId,
         freq: actualFreq,
+        freqRX: actualFreqRX,
+        band: freqToBand(actualFreq),
+        bandRX: freqToBand(actualFreqRX),
         call: targetCall.toUpperCase(),
         grid: targetGrid.toUpperCase(),
         rstSent: rstSent || state.rstDefault,
         rstRcvd: rstRcvd || state.rstDefault,
         distanceKm: dist,
         myGrid: state.myGrid,
+        myLat: state.myLat,
+        myLon: state.myLon,
+        targetLat: targetLat || (targetPos ? targetPos.lat : null),
+        targetLon: targetLon || (targetPos ? targetPos.lon : null),
         status: status || 'heard',
         mode: 'DATA',
         qslSent: true,
         qslRcvd: status === 'confirmed',
         satMode: 'DATA',
+        messageText: messageText || null,
     };
     state.qsoLog.unshift(qso);
     if (state.qsoLog.length > 200) state.qsoLog.length = 200;
@@ -771,35 +847,45 @@ function exportQSOLog() {
         showToast(t('toast.no_qso_export'), true);
         return;
     }
-    let adi = 'ADIF Export from OrbitAPRS\n<ADIF_VER:5>3.1.0\n<PROGRAMID:10>OrbitAPRS\n<EOH>\n';
-    state.qsoLog.forEach(qso => {
-        const date = qso.utc.slice(0, 10).replace(/-/g, '');
-        const time = qso.utc.slice(11, 19).replace(/:/g, '');
-        const band = qso.freq < 148 ? '2M' : '70CM';
+    var adi = 'ADIF Export from OrbitAPRS\n<ADIF_VER:5>3.1.0\n<PROGRAMID:10>OrbitAPRS\n<EOH>\n';
+    state.qsoLog.forEach(function(qso) {
+        var date = qso.utc.slice(0, 10).replace(/-/g, '');
+        var timeOn = qso.utc.slice(11, 19).replace(/:/g, '');
+        var timeOff = (qso.timeOff || qso.utc).slice(11, 19).replace(/:/g, '');
+        var band = qso.band || freqToBand(qso.freq);
+        var bandRX = qso.bandRX || freqToBand(qso.freqRX || qso.freq);
         adi += '<CALL:' + qso.call.length + '>' + qso.call + ' ';
         adi += '<QSO_DATE:8>' + date + ' ';
-        adi += '<TIME_ON:6>' + time + ' ';
-        adi += '<TIME_OFF:6>' + time + ' ';
+        adi += '<TIME_ON:6>' + timeOn + ' ';
+        adi += '<TIME_OFF:6>' + timeOff + ' ';
         adi += '<BAND:' + band.length + '>' + band + ' ';
         adi += '<FREQ:' + qso.freq.toFixed(3).length + '>' + qso.freq.toFixed(3) + ' ';
+        if (qso.freqRX) adi += '<FREQ_RX:' + qso.freqRX.toFixed(3).length + '>' + qso.freqRX.toFixed(3) + ' ';
+        if (bandRX && bandRX !== band) adi += '<BAND_RX:' + bandRX.length + '>' + bandRX + ' ';
         adi += '<MODE:4>DATA ';
         adi += '<PROP_MODE:3>SAT ';
-        const satName = qso.satellite || 'Unknown';
+        var satName = qso.satellite || 'Unknown';
         adi += '<SAT_NAME:' + satName.length + '>' + satName + ' ';
         adi += '<RST_SENT:' + qso.rstSent.length + '>' + qso.rstSent + ' ';
         adi += '<RST_RCVD:' + qso.rstRcvd.length + '>' + qso.rstRcvd + ' ';
-        adi += '<GRIDSQUARE:' + qso.grid.length + '>' + qso.grid + ' ';
-        adi += '<MY_GRIDSQUARE:' + qso.myGrid.length + '>' + qso.myGrid + ' ';
+        if (qso.grid && isValidMaidenhead(qso.grid)) adi += '<GRIDSQUARE:' + qso.grid.length + '>' + qso.grid + ' ';
+        if (qso.myGrid && isValidMaidenhead(qso.myGrid)) adi += '<MY_GRIDSQUARE:' + qso.myGrid.length + '>' + qso.myGrid + ' ';
+        if (qso.myLat !== null && qso.myLat !== undefined) adi += '<MY_LAT:10>' + qso.myLat.toFixed(6) + ' ';
+        if (qso.myLon !== null && qso.myLon !== undefined) adi += '<MY_LON:10>' + qso.myLon.toFixed(6) + ' ';
+        if (qso.targetLat !== null && qso.targetLat !== undefined) adi += '<LAT:10>' + qso.targetLat.toFixed(6) + ' ';
+        if (qso.targetLon !== null && qso.targetLon !== undefined) adi += '<LON:10>' + qso.targetLon.toFixed(6) + ' ';
         adi += '<QSL_RCVD:1>' + (qso.status === 'confirmed' ? 'Y' : 'N') + ' ';
         adi += '<QSL_SENT:1>Y ';
         adi += '<STATION_CALLSIGN:' + state.myCall.length + '>' + state.myCall + ' ';
         adi += '<OPERATOR_CALLSIGN:' + state.myCall.length + '>' + state.myCall + ' ';
         if (qso.distanceKm) adi += '<DISTANCE:' + Math.round(qso.distanceKm).toString().length + '>' + Math.round(qso.distanceKm) + ' ';
+        if (qso.messageText) adi += '<COMMENT:' + qso.messageText.length + '>' + qso.messageText + ' ';
+        adi += '<APP_NAME:9>OrbitAPRS ';
         adi += '<EOR>\n';
     });
-    const blob = new Blob([adi], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    var blob = new Blob([adi], { type: 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
     a.href = url;
     a.download = 'orbitaprs_log_' + new Date().toISOString().slice(0, 10) + '.adi';
     a.click();
@@ -913,12 +999,14 @@ function sendFreeTextPacket() {
     if (!raw) { showToast(t('toast.enter_message'), true); return; }
     if (state.myCall === 'N0CALL') { showToast(t('toast.set_callsign'), true); return; }
 
-    const seq = String(state.msgIdCounter).padStart(2, '0');
-    state.msgIdCounter = (state.msgIdCounter % 99) + 1;
+    const seq = String(state.msgIdCounter).padStart(4, '0');
+    state.msgIdCounter = (state.msgIdCounter % 9999) + 1;
     persistSettings();
 
     const call = target.split(' ')[0];
-    const info = formatAPRSMessage(call, raw, seq);
+    const baseCall = call.split('-')[0].toUpperCase();
+    const ackEnabled = state.chatAck[baseCall] === true;
+    const info = formatAPRSMessage(call, raw, ackEnabled ? seq : undefined);
 
     const sourceCall = state.myCall;
     const destCall = isSatMode() ? state.tocallMsgSat : state.tocallMsgTer;
@@ -942,12 +1030,12 @@ function sendFreeTextPacket() {
         addTerminalLine('system', t('toast.tnc_packet_logged'));
     }
     document.getElementById('freeTextPacket').value = '';
-    // Chat: store sent messages
+    // Chat: store sent messages (pending ACK)
     if (!isSatMode()) {
-        addChatMessage(call, raw, 'sent');
+        addChatMessage(call, raw, 'sent', ackEnabled ? seq : null, state.msgRetries > 0 && ackEnabled ? 'pending' : null);
     }
-    if (state.msgRetries > 0) {
-        _pendingAcks.push({ target: call, msgId: seq, info: info, retries: 0, lastSent: Date.now() });
+    if (state.msgRetries > 0 && ackEnabled) {
+        _pendingAcks.push({ target: call, msgId: seq, info: info, retries: 0, lastSent: Date.now(), interval: 15000, nextRetry: Date.now() + 15000 });
         if (_pendingAcks.length > 50) _pendingAcks.shift();
         if (!_ackTimer) startAckTimer();
     }
@@ -1162,7 +1250,7 @@ function parseThirdPartyPacket(info) {
     };
 }
 
-function addChatMessage(call, text, type) {
+function addChatMessage(call, text, type, msgId, status) {
     if (!call || !text) return;
     var fullCall = call.toUpperCase();
     var key = fullCall.split('-')[0];
@@ -1171,7 +1259,9 @@ function addChatMessage(call, text, type) {
         type: type,
         text: text,
         time: getUTCShort(),
-        ts: Date.now()
+        ts: Date.now(),
+        msgId: msgId || null,
+        status: status || null,
     });
     if (_chatMessages[key].length > 200) _chatMessages[key].shift();
     saveChatMessages();
@@ -1216,18 +1306,28 @@ function selectChat(call) {
         document.getElementById('packetTarget').value = call;
     }
     persistSettings();
-    renderChatList();
-    renderChatMessages(baseCall);
+    renderChatView();
 }
 
 function renderChatView() {
     renderChatList();
-    if (state.chatActive && _chatMessages[state.chatActive]) {
+    if (state.chatActive) {
         renderChatMessages(state.chatActive);
     } else {
-        var msgs = document.getElementById('chatMessages');
-        msgs.innerHTML = '<div class="chat-empty">Select a chat to start</div>';
+        var el = document.getElementById('chatMessages');
+        if (el) el.innerHTML = '<div class="chat-empty">Select a chat to start</div>';
     }
+}
+
+function toggleChatAck(call) {
+    if (state.chatAck[call] === true) {
+        delete state.chatAck[call];
+    } else {
+        if (!confirm(t('chat.ack_confirm'))) return;
+        state.chatAck[call] = true;
+    }
+    persistSettings();
+    renderChatView();
 }
 
 function renderChatList() {
@@ -1256,13 +1356,21 @@ function renderChatList() {
 function renderChatMessages(call) {
     var el = document.getElementById('chatMessages');
     if (!el) return;
+    var ackOn = state.chatAck[call] === true;
+    var headerHtml = '<div class="chat-header">' +
+        '<span class="chat-header-call">' + call + '</span>' +
+        '<button class="chat-ack-toggle' + (ackOn ? ' on' : '') + '" onclick="toggleChatAck(\'' + call + '\')">' +
+        (ackOn ? t('chat.ack_on') : t('chat.ack_off')) +
+        '</button></div>';
     var msgs = _chatMessages[call];
     if (!msgs || !msgs.length) {
-        el.innerHTML = '<div class="chat-empty">' + t('chat.no_messages') + '</div>';
+        el.innerHTML = headerHtml + '<div class="chat-empty">' + t('chat.no_messages') + '</div>';
         return;
     }
-    el.innerHTML = msgs.map(function(m) {
+    el.innerHTML = headerHtml + msgs.map(function(m) {
         var cls = m.type === 'sent' ? 'sent' : 'received';
+        if (m.status === 'pending') cls += ' pending';
+        else if (m.status === 'confirmed') cls += ' confirmed';
         return '<div class="chat-bubble ' + cls + '">' +
             escapeHTML(m.text) +
             '<div class="chat-bubble-time">' + m.time + '</div>' +
@@ -1297,10 +1405,19 @@ function updateBeaconState() {
     }
 }
 
+function calcBeaconInterval(digipath) {
+    if (!digipath || digipath === 'DIRECT') return 600;
+    var saltos = digipath.split(',').length;
+    if (saltos <= 1) return 600;
+    if (saltos === 2) return 1200;
+    return 1800;
+}
+
 function startBeaconTimer() {
     stopBeaconTimer();
     if (!state.beaconEnabled || state.selectedSat !== 'terrestrial') return;
-    _beaconTimer = setInterval(sendBeaconPacket, state.beaconInterval * 1000);
+    var interval = state.beaconInterval || calcBeaconInterval(state.digipath);
+    _beaconTimer = setInterval(sendBeaconPacket, interval * 1000);
 }
 
 function stopBeaconTimer() {
@@ -1316,20 +1433,21 @@ function sendBeaconPacket() {
     if (state.beaconShareLocation) {
         var st = state.beaconSymbolTable || '/';
         var sy = state.beaconSymbolCode || '[';
-        info = formatAPRSPosition(state.myLat, state.myLon, sy, st, state.beaconMessage);
+        info = formatAPRSPosition(state.myLat, state.myLon, sy, st, state.beaconMessage, state.myAlt);
     } else if (state.beaconMessage) {
-        info = '>' + state.beaconMessage;
+        info = '>' + sanitizeAPRSText(state.beaconMessage);
     } else {
         return;
     }
-    var fullPacket = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, info);
+    var beaconDest = state.beaconDestCall || 'GPS';
+    var fullPacket = formatAPRSFrame(state.myCall, beaconDest, state.digipath, info);
     addTerminalLine('tx', fullPacket);
     if (state.tnc && state.tnc.connected) {
         try {
             var packet = {
                 infoField: info,
                 sourceCall: state.myCall,
-                destCall: state.tocallPosTer,
+                destCall: beaconDest,
                 digipath: state.digipath,
                 fullPacket: fullPacket,
             };
