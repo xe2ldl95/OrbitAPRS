@@ -138,6 +138,7 @@
 
         var jd = getJulianDate(new Date());
         var ctx = initSGP4(sat);
+        if (!ctx) return;
         var tsince = (jd - ctx.epochJD) * MIN_PER_DAY;
         var prop = propagateSGP4(ctx, tsince);
         if (!prop) return;

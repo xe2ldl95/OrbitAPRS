@@ -58,6 +58,7 @@ function dayOfYearToJD(year, doy, frac) {
 }
 
 function initSGP4(sat) {
+    if (!sat || !sat.tle1 || !sat.tle2) return null;
     const key = sat.id + sat.tle1.slice(18, 32);
     if (_satrecCache.has(key)) return _satrecCache.get(key);
     const satrec = window.satellite.twoline2satrec(sat.tle1, sat.tle2);

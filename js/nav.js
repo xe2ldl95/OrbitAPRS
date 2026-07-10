@@ -66,6 +66,7 @@ var navView = (function() {
                 if (sat && typeof getJulianDate !== 'undefined' && typeof propagateSGP4 !== 'undefined' && typeof initSGP4 !== 'undefined' && typeof eciToObserverECI !== 'undefined' && typeof calculateAzimuth !== 'undefined' && typeof calculateElevation !== 'undefined') {
                     var jd = getJulianDate(new Date());
                     var ctx = initSGP4(sat);
+                    if (!ctx) return;
                     var tsince = (jd - ctx.epochJD) * 1440;
                     var prop = propagateSGP4(ctx, tsince);
                     if (prop) {
