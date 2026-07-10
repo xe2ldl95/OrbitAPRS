@@ -66,6 +66,19 @@ function confirmAck(target, msgId) {
         showToast(t('toast.msg_acknowledged') + target);
         if (_pendingAcks.length === 0) stopAckTimer();
     }
+    // Confirm pending chat message
+    var key = target.split('-')[0].toUpperCase();
+    var msgs = _chatMessages[key];
+    if (msgs) {
+        for (var mi = msgs.length - 1; mi >= 0; mi--) {
+            if (msgs[mi].msgId === msgId && msgs[mi].status === 'pending') {
+                msgs[mi].status = 'confirmed';
+                saveChatMessages();
+                if (key === state.chatActive) renderChatMessages(key);
+                break;
+            }
+        }
+    }
 }
 
 function resolveMacroTemplate(macro, target) {
@@ -288,11 +301,15 @@ function sendQuickAction(action) {
                 }
             }
             var msgId = extractMsgId(info);
+            var enqTarget = target.split(' ')[0];
             if (info[0] === ':' && msgId && state.msgRetries > 0) {
-                var enqTarget = target.split(' ')[0];
                 _pendingAcks.push({ target: enqTarget, msgId: msgId, info: info, retries: 0, lastSent: Date.now() });
                 if (_pendingAcks.length > 50) _pendingAcks.shift();
                 if (!_ackTimer) startAckTimer();
+            }
+            if (info[0] === ':' && !isSatMode()) {
+                var chatBody = extractMessageBody(info);
+                if (chatBody) addChatMessage(enqTarget, chatBody, 'sent', msgId, state.msgRetries > 0 && msgId ? 'pending' : null);
             }
         } catch (e) {
             showToast(t('toast.tx_error') + ' ' + e.message, true);
@@ -548,7 +565,7 @@ function tncConnect() {
         // Chat: store received messages directed to us (terrestrial only)
         if (pkt.info && pkt.info[0] === ':' && !isSatMode()) {
             var msgBody = extractMessageBody(pkt.info);
-            if (msgBody && msgDestIsForUs(pkt.info)) {
+            if (msgBody && msgDestIsForUs(pkt.info) && !/^ack\d{1,2}$/i.test(msgBody)) {
                 addChatMessage(pkt.source, msgBody, 'received');
             }
         }
@@ -597,7 +614,7 @@ function tncConnect() {
             var tp = parseThirdPartyPacket(pkt.info);
             if (tp && tp.info[0] === ':') {
                 var msgBody = extractMessageBody(tp.info);
-                if (msgBody && msgDestIsForUs(tp.info)) {
+                if (msgBody && msgDestIsForUs(tp.info) && !/^ack\d{1,2}$/i.test(msgBody)) {
                     addChatMessage(tp.source, msgBody, 'received');
                 }
             }
@@ -949,9 +966,9 @@ function sendFreeTextPacket() {
         addTerminalLine('system', t('toast.tnc_packet_logged'));
     }
     document.getElementById('freeTextPacket').value = '';
-    // Chat: store sent messages
+    // Chat: store sent messages (pending ACK)
     if (!isSatMode()) {
-        addChatMessage(call, raw, 'sent');
+        addChatMessage(call, raw, 'sent', seq, state.msgRetries > 0 ? 'pending' : null);
     }
     if (state.msgRetries > 0) {
         _pendingAcks.push({ target: call, msgId: seq, info: info, retries: 0, lastSent: Date.now() });
@@ -1169,7 +1186,7 @@ function parseThirdPartyPacket(info) {
     };
 }
 
-function addChatMessage(call, text, type) {
+function addChatMessage(call, text, type, msgId, status) {
     if (!call || !text) return;
     var fullCall = call.toUpperCase();
     var key = fullCall.split('-')[0];
@@ -1178,7 +1195,9 @@ function addChatMessage(call, text, type) {
         type: type,
         text: text,
         time: getUTCShort(),
-        ts: Date.now()
+        ts: Date.now(),
+        msgId: msgId || null,
+        status: status || null,
     });
     if (_chatMessages[key].length > 200) _chatMessages[key].shift();
     saveChatMessages();
@@ -1270,6 +1289,8 @@ function renderChatMessages(call) {
     }
     el.innerHTML = msgs.map(function(m) {
         var cls = m.type === 'sent' ? 'sent' : 'received';
+        if (m.status === 'pending') cls += ' pending';
+        else if (m.status === 'confirmed') cls += ' confirmed';
         return '<div class="chat-bubble ' + cls + '">' +
             escapeHTML(m.text) +
             '<div class="chat-bubble-time">' + m.time + '</div>' +

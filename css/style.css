@@ -368,6 +368,8 @@ body {
     font-family: var(--font-mono);
 }
 .chat-bubble.sent { align-self: flex-end; background: #1a3a2a; color: var(--green); border-bottom-right-radius: 2px; }
+.chat-bubble.sent.pending { opacity: 0.65; border-left: 3px solid var(--orange); }
+.chat-bubble.sent.confirmed { border-left: 3px solid var(--green); }
 .chat-bubble.received { align-self: flex-start; background: #1a2434; color: #81d4fa; border-bottom-left-radius: 2px; }
 .chat-bubble-time { font-size: 0.65em; color: #555; margin-top: 2px; }
 .chat-bubble.sent .chat-bubble-time { text-align: right; }
