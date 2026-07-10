@@ -245,18 +245,21 @@ function sendQuickAction(action) {
         return;
     }
     let info = resolveMacroTemplate(macro, target);
-    // APRS message formatting (type ':'): pad destination to 9 chars, ensure {xx sequence
+    // APRS message formatting (type ':'): pad destination to 9 chars, optionally add {xx sequence
     if (info[0] === ':') {
         const secondColon = info.indexOf(':', 1);
+        let ackEnabled = false;
         if (secondColon > 1 && secondColon < 12) {
             const dest = info.slice(1, secondColon);
             const body = info.slice(secondColon + 1);
             const msgIdMatch = body.match(/\{(\d{1,2})$/);
             const msgId = msgIdMatch ? msgIdMatch[1] : null;
             const msg = msgIdMatch ? body.slice(0, body.lastIndexOf('{')) : body;
-            info = formatAPRSMessage(dest, msg, msgId || String(state.msgIdCounter).padStart(2, '0'));
+            const destBase = dest.split('-')[0].toUpperCase();
+            ackEnabled = state.chatAck[destBase] === true;
+            info = formatAPRSMessage(dest, msg, ackEnabled ? (msgId || String(state.msgIdCounter).padStart(2, '0')) : undefined);
         }
-        if (!/\{\d{2}$/.test(info)) {
+        if (ackEnabled && !/\{\d{2}$/.test(info)) {
             const seq = String(state.msgIdCounter).padStart(2, '0');
             info += '{' + seq;
         }
@@ -942,7 +945,9 @@ function sendFreeTextPacket() {
     persistSettings();
 
     const call = target.split(' ')[0];
-    const info = formatAPRSMessage(call, raw, seq);
+    const baseCall = call.split('-')[0].toUpperCase();
+    const ackEnabled = state.chatAck[baseCall] === true;
+    const info = formatAPRSMessage(call, raw, ackEnabled ? seq : undefined);
 
     const sourceCall = state.myCall;
     const destCall = isSatMode() ? state.tocallMsgSat : state.tocallMsgTer;
@@ -968,9 +973,9 @@ function sendFreeTextPacket() {
     document.getElementById('freeTextPacket').value = '';
     // Chat: store sent messages (pending ACK)
     if (!isSatMode()) {
-        addChatMessage(call, raw, 'sent', seq, state.msgRetries > 0 ? 'pending' : null);
+        addChatMessage(call, raw, 'sent', ackEnabled ? seq : null, state.msgRetries > 0 && ackEnabled ? 'pending' : null);
     }
-    if (state.msgRetries > 0) {
+    if (state.msgRetries > 0 && ackEnabled) {
         _pendingAcks.push({ target: call, msgId: seq, info: info, retries: 0, lastSent: Date.now() });
         if (_pendingAcks.length > 50) _pendingAcks.shift();
         if (!_ackTimer) startAckTimer();
@@ -1242,18 +1247,28 @@ function selectChat(call) {
         document.getElementById('packetTarget').value = call;
     }
     persistSettings();
-    renderChatList();
-    renderChatMessages(baseCall);
+    renderChatView();
 }
 
 function renderChatView() {
     renderChatList();
-    if (state.chatActive && _chatMessages[state.chatActive]) {
+    if (state.chatActive) {
         renderChatMessages(state.chatActive);
     } else {
-        var msgs = document.getElementById('chatMessages');
-        msgs.innerHTML = '<div class="chat-empty">Select a chat to start</div>';
+        var el = document.getElementById('chatMessages');
+        if (el) el.innerHTML = '<div class="chat-empty">Select a chat to start</div>';
     }
+}
+
+function toggleChatAck(call) {
+    if (state.chatAck[call] === true) {
+        delete state.chatAck[call];
+    } else {
+        if (!confirm(t('chat.ack_confirm'))) return;
+        state.chatAck[call] = true;
+    }
+    persistSettings();
+    renderChatView();
 }
 
 function renderChatList() {
@@ -1282,12 +1297,18 @@ function renderChatList() {
 function renderChatMessages(call) {
     var el = document.getElementById('chatMessages');
     if (!el) return;
+    var ackOn = state.chatAck[call] === true;
+    var headerHtml = '<div class="chat-header">' +
+        '<span class="chat-header-call">' + call + '</span>' +
+        '<button class="chat-ack-toggle' + (ackOn ? ' on' : '') + '" onclick="toggleChatAck(\'' + call + '\')">' +
+        (ackOn ? t('chat.ack_on') : t('chat.ack_off')) +
+        '</button></div>';
     var msgs = _chatMessages[call];
     if (!msgs || !msgs.length) {
-        el.innerHTML = '<div class="chat-empty">' + t('chat.no_messages') + '</div>';
+        el.innerHTML = headerHtml + '<div class="chat-empty">' + t('chat.no_messages') + '</div>';
         return;
     }
-    el.innerHTML = msgs.map(function(m) {
+    el.innerHTML = headerHtml + msgs.map(function(m) {
         var cls = m.type === 'sent' ? 'sent' : 'received';
         if (m.status === 'pending') cls += ' pending';
         else if (m.status === 'confirmed') cls += ' confirmed';

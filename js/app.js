@@ -74,6 +74,7 @@ const state = {
     customPaths: [],
     chatList: [],
     chatActive: null,
+    chatAck: {},
     beaconEnabled: false,
     beaconInterval: 300,
     beaconShareLocation: true,
@@ -267,6 +268,7 @@ function loadSettings() {
                 state.chatList = Array.isArray(s.chatList) ? s.chatList : [];
                 state.selectedSat = s.selectedSat || null;
                 state.chatActive = s.chatActive || null;
+                state.chatAck = s.chatAck || {};
                 state.beaconEnabled = s.beaconEnabled === true;
                 state.beaconInterval = s.beaconInterval || 300;
                 state.beaconShareLocation = s.beaconShareLocation !== false;
@@ -568,6 +570,7 @@ function persistSettings() {
             heardStationsLimit: state.heardStationsLimit,
             selectedSat: state.selectedSat,
             chatActive: state.chatActive,
+            chatAck: state.chatAck,
             beaconEnabled: state.beaconEnabled,
             beaconInterval: state.beaconInterval,
             beaconShareLocation: state.beaconShareLocation,

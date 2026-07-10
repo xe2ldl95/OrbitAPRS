@@ -276,6 +276,9 @@ LANG.es = {
     'chat.empty_state': 'Selecciona un chat para empezar',
     'chat.no_chats': 'Sin chats aún',
     'chat.no_messages': 'Sin mensajes aún',
+    'chat.ack_on': 'ACK: ON',
+    'chat.ack_off': 'ACK: OFF',
+    'chat.ack_confirm': '¿Activar ACK para esta conversación? Todos los mensajes enviados a esta estación solicitarán confirmación.',
 };
 
 LANG.en = {
@@ -554,6 +557,9 @@ LANG.en = {
     'chat.empty_state': 'Select a chat to start',
     'chat.no_chats': 'No chats yet',
     'chat.no_messages': 'No messages yet',
+    'chat.ack_on': 'ACK: ON',
+    'chat.ack_off': 'ACK: OFF',
+    'chat.ack_confirm': 'Enable ACK for this chat? All messages sent to this station will request confirmation.',
 };
 
 function t(key) {
