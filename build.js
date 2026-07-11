@@ -60,7 +60,6 @@ function build() {
         'icons/icon-512.png'
     ];
 
-    // Copy all files
     for (const file of filesToCopy) {
         const srcPath = path.join(srcDir, file);
         const destPath = path.join(distDir, file);
@@ -70,6 +69,9 @@ function build() {
         fs.copyFileSync(srcPath, destPath);
         console.log(`Copied ${file}`);
     }
+
+    copyFile(path.join(srcDir, 'icons', 'symbols'), path.join(distDir, 'icons', 'symbols'));
+    console.log('Copied icons/symbols/');
     
     // Create version file
     const version = require('./package.json').version;

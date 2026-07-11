@@ -1,6 +1,6 @@
 {
   "name": "orbitaprs",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "private": true,
   "description": "**APRS satellite and terrestrial communication app** — works in the browser with Web Serial, Web Bluetooth, and WebUSB to connect to KISS TNCs and CH340 devices.",
   "main": "main.js",
@@ -12,7 +12,14 @@
     "electron:dev": "electron . --dev --no-sandbox",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["aprs", "satellite", "kiss", "tnc", "electron", "desktop"],
+  "keywords": [
+    "aprs",
+    "satellite",
+    "kiss",
+    "tnc",
+    "electron",
+    "desktop"
+  ],
   "author": "XE2LDL - Luis",
   "license": "MIT",
   "repository": {
@@ -25,9 +32,9 @@
   "homepage": "https://github.com/xe2ldl95/OrbitAPRS#readme",
   "devDependencies": {
     "electron": "^28.2.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "sharp": "^0.35.3"
   },
-  "dependencies": {},
   "build": {
     "appId": "com.xe2ldl.OrbitAPRS",
     "productName": "OrbitAPRS",

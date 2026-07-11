@@ -419,6 +419,8 @@ body {
 }
 .leaflet-tooltip.qso-label::before { display: none; }
 .leaflet-tooltip.qso-label.my { color: var(--accent2); }
+.aprs-symbol-marker { background: none !important; border: none !important; }
+.aprs-symbol-marker img { image-rendering: pixelated; border-radius: 2px; filter: drop-shadow(0 0 2px rgba(0,0,0,0.6)); }
 
 /* ── Leaflet Dark Controls ── */
 .leaflet-control-zoom {

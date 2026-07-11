@@ -300,6 +300,9 @@ function extractAPRSData(info, dest) {
             if (latStr.slice(-1) === 'S') result.lat = -result.lat;
             result.lon = parseFloat(lonStr.slice(0, 3)) + parseFloat(lonStr.slice(3, 8)) / 60;
             if (lonStr.slice(-1) === 'W') result.lon = -result.lon;
+            result.symbolTable = latLonMatch[2];
+            const symIdx = latLonMatch.index + latLonMatch[0].length;
+            if (symIdx < body.length) result.symbol = body[symIdx];
         }
         const gridMatch = info.match(/\[(\w{4,6})\]/);
         if (gridMatch) result.grid = gridMatch[1].toUpperCase();

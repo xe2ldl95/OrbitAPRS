@@ -591,6 +591,8 @@ function tncConnect() {
             if (aprsFromPkt.grid) existing.grid = aprsFromPkt.grid;
             if (aprsFromPkt.lat !== null && aprsFromPkt.lat !== undefined) existing.lat = aprsFromPkt.lat;
             if (aprsFromPkt.lon !== null && aprsFromPkt.lon !== undefined) existing.lon = aprsFromPkt.lon;
+            if (aprsFromPkt.symbol) existing.symbol = aprsFromPkt.symbol;
+            if (aprsFromPkt.symbolTable) existing.symbolTable = aprsFromPkt.symbolTable;
         } else {
             state.heardStations.unshift({
                 call: pkt.source,
@@ -599,6 +601,8 @@ function tncConnect() {
                 grid: aprsFromPkt.grid || null,
                 lat: aprsFromPkt.lat ?? null,
                 lon: aprsFromPkt.lon ?? null,
+                symbol: aprsFromPkt.symbol || null,
+                symbolTable: aprsFromPkt.symbolTable || null,
             });
             if (state.heardStations.length > state.heardStationsLimit) state.heardStations.pop();
         }

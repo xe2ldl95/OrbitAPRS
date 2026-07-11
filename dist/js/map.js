@@ -69,7 +69,8 @@
         var tileOpts = buildTileOptions(style);
         _tileLayer = L.tileLayer(tileUrlForStyle(style), tileOpts).addTo(_map);
 
-        _myMarker = L.marker([state.myLat, state.myLon], { icon: myIcon })
+        var mySymIcon = (state.beaconSymbolCode && state.beaconSymbolTable) ? getSymbolIcon(state.beaconSymbolTable, state.beaconSymbolCode) : null;
+        _myMarker = L.marker([state.myLat, state.myLon], { icon: mySymIcon || myIcon })
             .addTo(_map)
             .bindPopup('<b>' + state.myCall + '</b><br>Grid: ' + state.myGrid);
 
@@ -263,6 +264,29 @@
         _myMarker.setPopupContent('<b>' + state.myCall + '</b><br>Grid: ' + state.myGrid);
     }
 
+    function getSymbolIcon(symTable, symChar) {
+        if (!symChar) return null;
+        var code = symChar.charCodeAt(0);
+        if (code < 33 || code > 126) return null;
+        var dir = symTable === '/' ? 'primary' : 'alternate';
+        var url = 'icons/symbols/' + dir + '/' + code + '.png';
+        return L.divIcon({
+            className: 'aprs-symbol-marker',
+            html: '<img src="' + url + '" width="16" height="16" alt="' + symChar + '">',
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+        });
+    }
+
+    function getFallbackIcon(color) {
+        return L.divIcon({
+            className: '',
+            html: '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';opacity:0.8;border:1px solid rgba(255,255,255,0.3);"></div>',
+            iconSize: [10, 10],
+            iconAnchor: [5, 5],
+        });
+    }
+
     function updateHeard() {
         if (!_map || _mode !== 'default') return;
         _heardGroup.clearLayers();
@@ -281,13 +305,9 @@
             }
             if (!pos) continue;
             try {
+                var symIcon = (h.symbol && h.symbolTable) ? getSymbolIcon(h.symbolTable, h.symbol) : null;
                 var m = L.marker([pos.lat, pos.lon], {
-                    icon: L.divIcon({
-                        className: '',
-                        html: '<div style="width:10px;height:10px;border-radius:50%;background:' + color + ';opacity:0.8;border:1px solid rgba(255,255,255,0.3);"></div>',
-                        iconSize: [10, 10],
-                        iconAnchor: [5, 5],
-                    })
+                    icon: symIcon || getFallbackIcon(color)
                 });
                 var tooltipText = h.call;
                 if (state.mapShowGeodesic) {
