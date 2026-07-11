@@ -1,4 +1,4 @@
-const CACHE_NAME = 'orbitaprs-v2.5';
+const CACHE_NAME = 'orbitaprs-v2.6';
 const TILE_CACHE = 'orbitaprs-tiles-v1';
 const TILE_MAX = 2000;
 

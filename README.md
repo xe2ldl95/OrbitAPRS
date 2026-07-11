@@ -177,7 +177,7 @@ Edit macro name, template, and log-QSO flag. Token reference:
 | Own repeat color | Color for own repeated packets | `#3b9fd4` |
 
 ### Licenses
-Version 2.4.0 — MIT License — XE2LDL / Luis 2026
+Version 2.4.1 — MIT License — XE2LDL / Luis 2026
 - Leaflet 1.9.4 (BSD-2-Clause)
 - satellite.js (MIT)
 - CartoDB dark tiles (CC-BY-4.0)
