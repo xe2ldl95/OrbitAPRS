@@ -583,7 +583,7 @@ function tncConnect() {
         addTerminalLine(lineType, pkt.source + ' > ' + pkt.dest + ' : ' + pkt.info);
         document.getElementById('tncStatusDot').className = 'status-dot active';
         logPacketFromTNC(pkt);
-        const aprsFromPkt = extractAPRSData(pkt.info);
+        const aprsFromPkt = extractAPRSData(pkt.info, pkt.dest);
         const existing = state.heardStations.find(s => s.call === pkt.source);
         if (existing) {
             existing.lastHeard = Date.now();

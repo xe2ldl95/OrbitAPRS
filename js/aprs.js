@@ -233,8 +233,10 @@ function decodeMicE(dest, info) {
     if (dstBase.charCodeAt(3) <= 0x4c) lat = -lat;
 
     const D = body.charCodeAt(0);
-    let lonDeg = 180 - D;
+    let lonDeg = D - 28;
     if (dstBase.charCodeAt(4) >= 0x50) lonDeg += 100;
+    if (lonDeg >= 180 && lonDeg <= 189) lonDeg -= 80;
+    if (lonDeg >= 190 && lonDeg <= 199) lonDeg -= 190;
 
     let lonMin = body.charCodeAt(1) - 28;
     if (lonMin >= 60) lonMin -= 60;

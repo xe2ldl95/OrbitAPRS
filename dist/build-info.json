@@ -1,6 +1,6 @@
 {
-  "version": "2.3.0",
-  "buildDate": "2026-07-10T22:59:45.190Z",
+  "version": "2.4.0",
+  "buildDate": "2026-07-11T22:33:36.410Z",
   "builtBy": "unknown",
   "features": [
     "tcp-kiss",

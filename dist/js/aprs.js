@@ -193,10 +193,105 @@ function formatAPRSFrame(source, dest, digipath, infoField) {
     return frame;
 }
 
-function extractAPRSData(info) {
+function decodeMicE(dest, info) {
+    const result = { grid: null, lat: null, lon: null, comment: null };
+    if (!dest || !info) return result;
+    const dstBase = dest.split('-')[0];
+    if (dstBase.length < 6) return result;
+    const body = info.slice(1);
+    if (body.length < 8) return result;
+
+    let latDigits = '';
+    for (let i = 0; i < dstBase.length; i++) {
+        const code = dstBase.charCodeAt(i);
+        const c = dstBase[i];
+        if (c === 'K' || c === 'L' || c === 'Z') {
+            latDigits += ' ';
+        } else if (code > 76) {
+            latDigits += String.fromCharCode(code - 32);
+        } else if (code > 57) {
+            latDigits += String.fromCharCode(code - 17);
+        } else {
+            latDigits += c;
+        }
+    }
+
+    const spaceMatch = latDigits.match(/^(\d+)( *)$/);
+    const posAmbiguity = spaceMatch ? spaceMatch[2].length : 0;
+    let latArr = latDigits.split('');
+    if (posAmbiguity > 0) {
+        if (posAmbiguity >= 4) {
+            latArr[2] = '3';
+        } else {
+            latArr[6 - posAmbiguity] = '5';
+        }
+    }
+    latDigits = latArr.join('');
+
+    const latMin = parseFloat(latDigits.slice(2, 4) + '.' + latDigits.slice(4, 6));
+    let lat = parseInt(latDigits.slice(0, 2), 10) + latMin / 60.0;
+    if (dstBase.charCodeAt(3) <= 0x4c) lat = -lat;
+
+    const D = body.charCodeAt(0);
+    let lonDeg = D - 28;
+    if (dstBase.charCodeAt(4) >= 0x50) lonDeg += 100;
+    if (lonDeg >= 180 && lonDeg <= 189) lonDeg -= 80;
+    if (lonDeg >= 190 && lonDeg <= 199) lonDeg -= 190;
+
+    let lonMin = body.charCodeAt(1) - 28;
+    if (lonMin >= 60) lonMin -= 60;
+    lonMin += (body.charCodeAt(2) - 28) / 100.0;
+
+    let lon = lonDeg + lonMin / 60.0;
+    if (dstBase.charCodeAt(5) >= 0x50) lon = -lon;
+
+    result.lat = lat;
+    result.lon = lon;
+    result.grid = latLonToGrid(lat, lon, 6);
+
+    result.symbol = body[7];
+    result.symbolTable = body[6];
+
+    const sepx = info.indexOf('}');
+    if (sepx >= 0) {
+        result.comment = info.slice(sepx + 1).trim() || null;
+    }
+
+    const E = body.charCodeAt(3) - 28;
+    const F = body.charCodeAt(4) - 28;
+    const G = body.charCodeAt(5) - 28;
+    let speed = E * 10;
+    const courseTens = Math.floor(F / 10);
+    const courseOnes = F % 10;
+    let course = courseOnes * 100 + G;
+    speed += courseTens;
+    if (speed >= 800) speed -= 800;
+    if (course >= 400) course -= 400;
+    result.speed = speed * 1.852;
+    result.course = course;
+
+    return result;
+}
+
+function extractAPRSData(info, dest) {
     const result = { grid: null, lat: null, lon: null, comment: null };
     if (!info) return result;
-    if (info[0] === '=' || info[0] === '@' || info[0] === '!' || info[0] === '/') {
+    const typeChar = info[0];
+    if (typeChar === '`' || typeChar === "'" || typeChar === '\x1c' || typeChar === '\x1d') {
+        const miced = decodeMicE(dest, info);
+        if (miced.lat !== null) {
+            result.grid = miced.grid;
+            result.lat = miced.lat;
+            result.lon = miced.lon;
+            result.comment = miced.comment;
+            result.symbol = miced.symbol;
+            result.symbolTable = miced.symbolTable;
+            result.speed = miced.speed;
+            result.course = miced.course;
+        }
+        return result;
+    }
+    if (typeChar === '=' || typeChar === '@' || typeChar === '!' || typeChar === '/') {
         const body = info.slice(1);
         const latLonMatch = body.match(/(\d{4}\.\d{2}[NS])(.)(\d{5}\.\d{2}[EW])/);
         if (latLonMatch) {
