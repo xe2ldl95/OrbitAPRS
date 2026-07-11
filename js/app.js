@@ -60,6 +60,7 @@ const state = {
     mapColorSat: '#aaaaaa',
     mapTileStyle: 'dark',
     mapTileCache: true,
+    aprsSymbolSize: 24,
     termColorTx: '#f0a030',
     termColorRx: '#00e676',
     termColorEcho: '#008844',
@@ -254,6 +255,7 @@ function loadSettings() {
                 state.mapColorSat = s.mapColorSat || '#aaaaaa';
                 state.mapTileStyle = s.mapTileStyle || 'dark';
                 state.mapTileCache = s.mapTileCache !== undefined ? s.mapTileCache : true;
+                state.aprsSymbolSize = s.aprsSymbolSize || 24;
                 state.termColorTx = s.termColorTx || '#f0a030';
                 state.termColorRx = s.termColorRx || '#00e676';
                 state.termColorEcho = s.termColorEcho || '#008844';
@@ -316,6 +318,7 @@ function populateSettingsFields() {
     document.getElementById('mapColorSat').value = state.mapColorSat;
     document.getElementById('setMapTileStyle').value = state.mapTileStyle;
     document.getElementById('setMapTileCache').checked = state.mapTileCache;
+    document.getElementById('aprsSymbolSize').value = state.aprsSymbolSize;
     document.getElementById('termColorTx').value = state.termColorTx;
     document.getElementById('termColorRx').value = state.termColorRx;
     document.getElementById('termColorEcho').value = state.termColorEcho;
@@ -387,6 +390,7 @@ function saveSettings() {
     state.mapColorSat = document.getElementById('mapColorSat').value;
     state.mapTileStyle = document.getElementById('setMapTileStyle').value || 'dark';
     state.mapTileCache = document.getElementById('setMapTileCache').checked;
+    state.aprsSymbolSize = parseInt(document.getElementById('aprsSymbolSize').value) || 24;
     state.termColorTx = document.getElementById('termColorTx').value;
     state.termColorRx = document.getElementById('termColorRx').value;
     state.termColorEcho = document.getElementById('termColorEcho').value;
@@ -560,7 +564,7 @@ function persistSettings() {
             mapShowQSO: state.mapShowQSO, mapShowSat: state.mapShowSat, mapShowGeodesic: state.mapShowGeodesic,
             mapColorHeardSat: state.mapColorHeardSat, mapColorHeardTer: state.mapColorHeardTer,
             mapColorQSO: state.mapColorQSO, mapColorSat: state.mapColorSat,
-            mapTileStyle: state.mapTileStyle, mapTileCache: state.mapTileCache,
+            mapTileStyle: state.mapTileStyle, mapTileCache: state.mapTileCache, aprsSymbolSize: state.aprsSymbolSize,
             termColorTx: state.termColorTx, termColorRx: state.termColorRx,
             termColorEcho: state.termColorEcho, termColorOwn: state.termColorOwn,
             tncTxDelay: state.tncTxDelay, tncPersistence: state.tncPersistence,

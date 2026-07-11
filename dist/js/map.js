@@ -268,13 +268,14 @@
         if (!symChar) return null;
         var code = symChar.charCodeAt(0);
         if (code < 33 || code > 126) return null;
+        var size = state.aprsSymbolSize || 24;
         var dir = symTable === '/' ? 'primary' : 'alternate';
         var url = 'icons/symbols/' + dir + '/' + code + '.png';
         return L.divIcon({
             className: 'aprs-symbol-marker',
-            html: '<img src="' + url + '" width="16" height="16" alt="' + symChar + '">',
-            iconSize: [16, 16],
-            iconAnchor: [8, 8],
+            html: '<img src="' + url + '" width="' + size + '" height="' + size + '" alt="' + symChar + '">',
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2],
         });
     }
 
