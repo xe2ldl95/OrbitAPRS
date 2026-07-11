@@ -24,7 +24,7 @@ function logPacketFromTNC(parsed) {
         });
         if (pendingIdx >= 0 && msgDestIsForUs(parsed.info)) {
             var pending = state.pendingQSOs[pendingIdx];
-            var aprsData = extractAPRSData(parsed.info);
+            var aprsData = extractAPRSData(parsed.info, parsed.dest);
             var remoteGrid = aprsData.grid || pending.grid;
 
             var secondColon = parsed.info.indexOf(':', 1);
