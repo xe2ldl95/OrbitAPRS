@@ -69,7 +69,9 @@
         var tileOpts = buildTileOptions(style);
         _tileLayer = L.tileLayer(tileUrlForStyle(style), tileOpts).addTo(_map);
 
-        var mySymIcon = (state.beaconSymbolCode && state.beaconSymbolTable) ? getSymbolIcon(state.beaconSymbolTable, state.beaconSymbolCode) : null;
+        var mySymIcon = (state.stationSymbolCode && state.stationSymbolTable)
+            ? getSymbolIcon(state.stationSymbolTable, state.stationSymbolCode)
+            : null;
         _myMarker = L.marker([state.myLat, state.myLon], { icon: mySymIcon || myIcon })
             .addTo(_map)
             .bindPopup('<b>' + state.myCall + '</b><br>Grid: ' + state.myGrid);

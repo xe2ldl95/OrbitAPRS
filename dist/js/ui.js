@@ -133,8 +133,8 @@ function resolveMacroTemplate(macro, target) {
     t = t.replace(/%R/g, tloc);
     t = t.replace(/%S/g, satName);
     t = t.replace(/%N/g, seq);
-    t = t.replace(/%T/g, macro.symbolTable || '/');
-    t = t.replace(/%Y/g, macro.symbol || '[');
+    t = t.replace(/%T/g, state.stationSymbolTable || '/');
+    t = t.replace(/%Y/g, state.stationSymbolCode || '[');
     // Legacy brace tokens (backward compatibility)
     t = t.replace(/\{mycall\}/g, state.myCall || 'N0CALL');
     t = t.replace(/\{mygrid\}/g, (state.myGrid || '--').toUpperCase());
@@ -162,7 +162,6 @@ function renderMacroEditor() {
             '<input class="macro-name" value="' + escapeHTML(m.name || '') + '" placeholder="Name" onchange="updateMacro(' + i + ',\'name\',this.value)" maxlength="16">' +
             '<input class="macro-template" value="' + escapeHTML(m.template || '') + '" placeholder="Template" onchange="updateMacro(' + i + ',\'template\',this.value)" maxlength="200">' +
             '<label class="macro-log" title="Auto-log QSO when sent"><input type="checkbox" onchange="updateMacro(' + i + ',\'logQSO\',this.checked)"' + (m.logQSO ? ' checked' : '') + '>📝</label>' +
-            ((m.template || '').charAt(0) === '=' ? '<button class="macro-symbol-btn" onclick="openSymbolPicker(' + i + ')" title="Select APRS symbol: ' + (m.symbolTable || '/') + (m.symbol || '[') + '">' + escapeHTML((m.symbolTable || '/') + (m.symbol || '[')) + '</button>' : '') +
             '<button class="macro-del" onclick="removeMacro(' + i + ')" title="Remove">✕</button>' +
         '</div>'
     ).join('');
@@ -177,7 +176,7 @@ function updateMacro(idx, field, value) {
 
 function addMacro() {
     const id = 'm' + Date.now();
-    state.macros.push({ id, name: 'New', icon: '🔘', template: 'Hello World', logQSO: false, symbolTable: '/', symbol: '[' });
+    state.macros.push({ id, name: 'New', icon: '🔘', template: 'Hello World', logQSO: false });
     renderMacroEditor();
     renderQuickActions();
 }
@@ -189,47 +188,27 @@ function removeMacro(idx) {
     renderQuickActions();
 }
 
-var _symbolPickerIdx = -1;
-var _symbolPickerBeacon = false;
+var _symbolPickerTarget = '';
 
 function jsEsc(str) {
     return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 }
 
-function openSymbolPicker(idx) {
-    _symbolPickerIdx = idx;
-    _symbolPickerBeacon = false;
-    var m = state.macros[idx];
-    if (!m) return;
-    renderSymbolPicker(m.symbolTable || '/', m.symbol || '[');
-    toggleModal('symbolPickerModal', true);
-}
-
-function openBeaconSymbolPicker() {
-    _symbolPickerBeacon = true;
-    renderSymbolPicker(state.beaconSymbolTable || '/', state.beaconSymbolCode || '[');
+function openStationSymbolPicker() {
+    _symbolPickerTarget = 'station';
+    renderSymbolPicker(state.stationSymbolTable || '/', state.stationSymbolCode || '[');
     toggleModal('symbolPickerModal', true);
 }
 
 function selectSymbol(table, sym) {
-    if (_symbolPickerBeacon) {
-        state.beaconSymbolTable = table;
-        state.beaconSymbolCode = sym;
-        var btn = document.getElementById('beaconSymbolBtn');
-        if (btn) {
-            var name = getSymbolName(table, sym);
-            btn.textContent = table + ' ' + sym + ' ' + name;
-        }
-        _symbolPickerBeacon = false;
-        toggleModal('symbolPickerModal', false);
-        return;
+    state.stationSymbolTable = table;
+    state.stationSymbolCode = sym;
+    var stBtn = document.getElementById('stationSymbolBtn');
+    if (stBtn) {
+        var name = getSymbolName(table, sym);
+        stBtn.innerHTML = '<img src="icons/symbols/' + (table === '/' ? 'primary' : 'alternate') + '/' + sym.charCodeAt(0) + '.png" width="16" height="16" style="vertical-align:middle;margin-right:4px;">' + table + sym + ' ' + name;
     }
-    var m = state.macros[_symbolPickerIdx];
-    if (!m) return;
-    m.symbolTable = table;
-    m.symbol = sym;
-    renderMacroEditor();
-    renderQuickActions();
+    _symbolPickerTarget = '';
     toggleModal('symbolPickerModal', false);
 }
 
@@ -252,13 +231,12 @@ function renderSymbolPicker(activeTable, activeSymbol) {
     });
     html += '</div>';
     html += '<div class="symbol-picker-grid">';
-    var syms = APRS_SYMBOLS[tables.indexOf(activeTable) === 0 ? 'primary' : 'alternate'];
+    var dir = activeTable === '/' ? 'primary' : 'alternate';
     var escTable = jsEsc(activeTable);
     for (var code = 33; code <= 126; code++) {
         var ch = String.fromCharCode(code);
-        var name = syms[ch] || 'Unknown';
         var selected = ch === activeSymbol ? ' selected' : '';
-        html += '<div class="symbol-picker-cell' + selected + '" onclick="selectSymbol(\'' + escTable + '\',\'' + jsEsc(ch) + '\')" title="' + escapeHTML(name) + '">' + escapeHTML(ch) + '</div>';
+        html += '<div class="symbol-picker-cell' + selected + '" onclick="selectSymbol(\'' + escTable + '\',\'' + jsEsc(ch) + '\')"><img src="icons/symbols/' + dir + '/' + code + '.png" width="20" height="20" alt="' + escapeHTML(ch) + '"></div>';
     }
     html += '</div>';
     el.innerHTML = html;
@@ -456,12 +434,6 @@ function toggleModal(id, show) {
             document.getElementById('beaconShareLocation').checked = state.beaconShareLocation;
             document.getElementById('beaconMessage').value = state.beaconMessage;
             document.getElementById('beaconToggle').checked = state.beaconEnabled;
-            var btn = document.getElementById('beaconSymbolBtn');
-            if (btn) {
-                var tbl = state.beaconSymbolTable || '/';
-                var sym = state.beaconSymbolCode || '[';
-                btn.textContent = tbl + ' ' + sym + ' ' + getSymbolName(tbl, sym);
-            }
         }
     } else {
         modal.classList.remove('active');
@@ -1435,8 +1407,8 @@ function sendBeaconPacket() {
     if (state.myCall === 'N0CALL') return;
     var info;
     if (state.beaconShareLocation) {
-        var st = state.beaconSymbolTable || '/';
-        var sy = state.beaconSymbolCode || '[';
+        var st = state.stationSymbolTable || '/';
+        var sy = state.stationSymbolCode || '[';
         info = formatAPRSPosition(state.myLat, state.myLon, sy, st, state.beaconMessage, state.myAlt);
     } else if (state.beaconMessage) {
         info = '>' + sanitizeAPRSText(state.beaconMessage);

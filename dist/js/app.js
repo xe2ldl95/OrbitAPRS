@@ -1,9 +1,9 @@
 const DEFAULT_MACROS = [
-    { id: 'm0', name: 'CQ',  icon: '📡', template: ':CQ:%G via %S{%N',              logQSO: false, symbolTable: '/', symbol: '[' },
-    { id: 'm1', name: 'Rpt', icon: '📻', template: ':%C:UR %RST{%N',                 logQSO: true,  symbolTable: '/', symbol: '[' },
-    { id: 'm2', name: '73',  icon: '💬', template: ':%C:QSL TU 73{%N',               logQSO: true,  symbolTable: '/', symbol: '[' },
-    { id: 'm3', name: 'Msg', icon: '✉️', template: ':CQ:via %S{%N',            logQSO: false, symbolTable: '/', symbol: '[' },
-    { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}%T{lon}%Y OrbitAPRS',              logQSO: false, symbolTable: '/', symbol: '[' },
+    { id: 'm0', name: 'CQ',  icon: '📡', template: ':CQ:%G via %S{%N',              logQSO: false },
+    { id: 'm1', name: 'Rpt', icon: '📻', template: ':%C:UR %RST{%N',                 logQSO: true  },
+    { id: 'm2', name: '73',  icon: '💬', template: ':%C:QSL TU 73{%N',               logQSO: true  },
+    { id: 'm3', name: 'Msg', icon: '✉️', template: ':CQ:via %S{%N',            logQSO: false },
+    { id: 'm4', name: 'Pos', icon: '📍', template: '={lat}%T{lon}%Y OrbitAPRS',              logQSO: false },
 ];
 
 function isSatMode() {
@@ -80,9 +80,9 @@ const state = {
     beaconInterval: 300,
     beaconShareLocation: true,
     beaconMessage: '',
-    beaconSymbolTable: '/',
-    beaconSymbolCode: '[',
     beaconDestCall: 'GPS',
+    stationSymbolTable: '/',
+    stationSymbolCode: '[',
     msgRetries: 3,
     lang: 'es',
 };
@@ -276,9 +276,9 @@ function loadSettings() {
                 state.beaconInterval = s.beaconInterval || 300;
                 state.beaconShareLocation = s.beaconShareLocation !== false;
                 state.beaconMessage = s.beaconMessage || '';
-                state.beaconSymbolTable = s.beaconSymbolTable || '/';
-                state.beaconSymbolCode = s.beaconSymbolCode || '[';
                 state.beaconDestCall = s.beaconDestCall || 'GPS';
+                state.stationSymbolTable = s.stationSymbolTable || '/';
+                state.stationSymbolCode = s.stationSymbolCode || '[';
                 state.msgRetries = s.msgRetries !== undefined ? s.msgRetries : 3;
                 state.lang = s.lang || 'es';
             } catch (e) {}
@@ -319,6 +319,13 @@ function populateSettingsFields() {
     document.getElementById('setMapTileStyle').value = state.mapTileStyle;
     document.getElementById('setMapTileCache').checked = state.mapTileCache;
     document.getElementById('aprsSymbolSize').value = state.aprsSymbolSize;
+    var stBtn = document.getElementById('stationSymbolBtn');
+    if (stBtn) {
+        var tbl = state.stationSymbolTable || '/';
+        var sym = state.stationSymbolCode || '[';
+        var name = getSymbolName(tbl, sym);
+        stBtn.innerHTML = '<img src="icons/symbols/' + (tbl === '/' ? 'primary' : 'alternate') + '/' + sym.charCodeAt(0) + '.png" width="16" height="16" style="vertical-align:middle;margin-right:4px;">' + tbl + sym + ' ' + name;
+    }
     document.getElementById('termColorTx').value = state.termColorTx;
     document.getElementById('termColorRx').value = state.termColorRx;
     document.getElementById('termColorEcho').value = state.termColorEcho;
@@ -581,9 +588,9 @@ function persistSettings() {
             beaconInterval: state.beaconInterval,
             beaconShareLocation: state.beaconShareLocation,
             beaconMessage: state.beaconMessage,
-            beaconSymbolTable: state.beaconSymbolTable,
-            beaconSymbolCode: state.beaconSymbolCode,
             beaconDestCall: state.beaconDestCall,
+            stationSymbolTable: state.stationSymbolTable,
+            stationSymbolCode: state.stationSymbolCode,
             msgRetries: state.msgRetries,
             lang: state.lang,
         }));

@@ -252,7 +252,7 @@ body {
     background: #151a25; border: 1px solid transparent; transition: all 0.15s;
 }
 .symbol-picker-cell:hover { border-color: var(--accent2); background: #1a2434; }
-.symbol-picker-cell.selected { border-color: var(--accent2); background: #1a3a4a; color: #81d4fa; }
+.symbol-picker-cell.selected { border-color: var(--accent2); background: #1a3a4a; box-shadow: 0 0 6px rgba(59,159,212,0.4); }
 
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
