@@ -421,6 +421,8 @@ body {
 .leaflet-tooltip.qso-label.my { color: var(--accent2); }
 .aprs-symbol-marker { background: none !important; border: none !important; }
 .aprs-symbol-marker img { image-rendering: pixelated; border-radius: 2px; filter: drop-shadow(0 0 2px rgba(0,0,0,0.6)); }
+.station-symbol-indicator { display:inline-flex; align-items:center; gap:2px; padding:2px 6px; background:#151a25; border:1px solid var(--border); border-radius:3px; font-size:0.72em; color:#888; font-family:var(--font-mono); margin-left:4px; }
+.station-symbol-indicator img { border-radius:1px; }
 
 /* ── Leaflet Dark Controls ── */
 .leaflet-control-zoom {

@@ -162,6 +162,7 @@ function renderMacroEditor() {
             '<input class="macro-name" value="' + escapeHTML(m.name || '') + '" placeholder="Name" onchange="updateMacro(' + i + ',\'name\',this.value)" maxlength="16">' +
             '<input class="macro-template" value="' + escapeHTML(m.template || '') + '" placeholder="Template" onchange="updateMacro(' + i + ',\'template\',this.value)" maxlength="200">' +
             '<label class="macro-log" title="Auto-log QSO when sent"><input type="checkbox" onchange="updateMacro(' + i + ',\'logQSO\',this.checked)"' + (m.logQSO ? ' checked' : '') + '>📝</label>' +
+            ((m.template || '').charAt(0) === '=' ? '<span class="station-symbol-indicator">' + getSymbolHtml(state.stationSymbolTable || '/', state.stationSymbolCode || '[') + '</span>' : '') +
             '<button class="macro-del" onclick="removeMacro(' + i + ')" title="Remove">✕</button>' +
         '</div>'
     ).join('');
@@ -216,6 +217,13 @@ function getSymbolName(table, sym) {
     var key = table === '/' ? 'primary' : 'alternate';
     var syms = (typeof APRS_SYMBOLS !== 'undefined') ? APRS_SYMBOLS[key] : null;
     return (syms && syms[sym]) ? syms[sym] : sym;
+}
+
+function getSymbolHtml(tbl, sym) {
+    var name = getSymbolName(tbl, sym);
+    var code = sym.charCodeAt(0);
+    var dir = tbl === '/' ? 'primary' : 'alternate';
+    return '<img src="icons/symbols/' + dir + '/' + code + '.png" width="14" height="14" style="vertical-align:middle;margin-right:2px;">' + tbl + sym + ' ' + name;
 }
 
 function renderSymbolPicker(activeTable, activeSymbol) {
@@ -434,6 +442,12 @@ function toggleModal(id, show) {
             document.getElementById('beaconShareLocation').checked = state.beaconShareLocation;
             document.getElementById('beaconMessage').value = state.beaconMessage;
             document.getElementById('beaconToggle').checked = state.beaconEnabled;
+            var si = document.getElementById('beaconStationSymbol');
+            if (si) {
+                var tbl = state.stationSymbolTable || '/';
+                var sym = state.stationSymbolCode || '[';
+                si.innerHTML = getSymbolHtml(tbl, sym);
+            }
         }
     } else {
         modal.classList.remove('active');

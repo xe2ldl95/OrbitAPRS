@@ -240,7 +240,15 @@ function loadSettings() {
                 state.tocallPosTer = s.tocallPosTer || s.tocall || 'APZ100';
                 state.msgIdCounter = s.msgIdCounter !== undefined ? s.msgIdCounter : 0;
                 state.lastTLEUpdate = s.lastTLEUpdate || null;
-                state.macros = (s.macros && s.macros.length && s.macros[0].template) ? s.macros : DEFAULT_MACROS.map(m => ({...m}));
+                state.macros = (s.macros && s.macros.length && s.macros[0].template) ? s.macros.map(function(m) {
+                    var macro = Object.assign({}, m);
+                    delete macro.symbolTable;
+                    delete macro.symbol;
+                    if (macro.template && macro.template.charAt(0) === '=' && macro.template.indexOf('%T') === -1 && macro.template.indexOf('%Y') === -1) {
+                        macro.template = macro.template.replace('{lat}', '{lat}%T').replace('{lon}', '{lon}%Y');
+                    }
+                    return macro;
+                }) : DEFAULT_MACROS.map(function(m) { return Object.assign({}, m); });
                 state.satFreqOverrides = s.satFreqOverrides || {};
                 state.elevationOffset = (s.elevationOffset !== undefined && s.elevationOffset !== null) ? s.elevationOffset : 0;
                 state.userSatellites = s.userSatellites || [];
@@ -277,8 +285,8 @@ function loadSettings() {
                 state.beaconShareLocation = s.beaconShareLocation !== false;
                 state.beaconMessage = s.beaconMessage || '';
                 state.beaconDestCall = s.beaconDestCall || 'GPS';
-                state.stationSymbolTable = s.stationSymbolTable || '/';
-                state.stationSymbolCode = s.stationSymbolCode || '[';
+                state.stationSymbolTable = s.stationSymbolTable || s.beaconSymbolTable || '/';
+                state.stationSymbolCode = s.stationSymbolCode || s.beaconSymbolCode || '[';
                 state.msgRetries = s.msgRetries !== undefined ? s.msgRetries : 3;
                 state.lang = s.lang || 'es';
             } catch (e) {}
