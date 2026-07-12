@@ -264,6 +264,9 @@
         if (!_myMarker) return;
         _myMarker.setLatLng([state.myLat, state.myLon]);
         _myMarker.setPopupContent('<b>' + state.myCall + '</b><br>Grid: ' + state.myGrid);
+        var symIcon = (state.stationSymbolCode && state.stationSymbolTable)
+            ? getSymbolIcon(state.stationSymbolTable, state.stationSymbolCode) : null;
+        _myMarker.setIcon(symIcon || myIcon);
     }
 
     function getSymbolIcon(symTable, symChar) {
