@@ -547,17 +547,16 @@ document.querySelector('.header .logo').addEventListener('click', () => {
 });
 
 function tncConnect() {
-    const type = document.getElementById('setTncType').value;
+    const type = state.tncType || 'serial';
     let port = '';
     let host = '';
-    const baud = parseInt(document.getElementById('setTncBaud').value);
+    const baud = parseInt(state.tncBaud) || 57600;
     
     if (type === 'tcp') {
-        host = document.getElementById('setTncHost').value.trim();
-        port = document.getElementById('setTncPort').value.trim();
+        host = state.tncHost || 'localhost';
+        port = parseInt(state.tncPort) || 8001;
         if (!host) { showToast(t('toast.tcp_host_required'), true); return; }
         if (!port) { showToast(t('toast.tcp_port_required'), true); return; }
-        port = parseInt(port);
     }
     
     if (!state.tnc) state.tnc = new TNC();
@@ -764,6 +763,15 @@ function renderHeardList() {
 function tncDisconnect() {
     if (state.tnc) {
         state.tnc.disconnect();
+    }
+}
+
+function toggleTNCConnection() {
+    if (state.tnc && state.tnc.connected) {
+        if (!confirm(t('confirm.disconnect_tnc'))) return;
+        tncDisconnect();
+    } else {
+        tncConnect();
     }
 }
 
@@ -1423,7 +1431,7 @@ function sendBeaconPacket() {
     if (state.beaconShareLocation) {
         var st = state.stationSymbolTable || '/';
         var sy = state.stationSymbolCode || '[';
-        info = formatAPRSPosition(state.myLat, state.myLon, sy, st, state.beaconMessage, state.myAlt);
+        info = formatAPRSPosition(state.myLat, state.myLon, sy, st, state.beaconMessage);
     } else if (state.beaconMessage) {
         info = '>' + sanitizeAPRSText(state.beaconMessage);
     } else {

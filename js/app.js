@@ -670,3 +670,12 @@ function getUTCShort() {
 function getUTCNow() {
     return new Date().toISOString().replace('T', ' ').slice(0, 19);
 }
+
+function clearAllData() {
+    if (!confirm(t('confirm.clear_data'))) return;
+    localStorage.removeItem('orbitaprs_settings');
+    localStorage.removeItem('orbitaprs_tle');
+    localStorage.removeItem('orbitaprs_chatmessages');
+    showToast(t('toast.data_cleared'));
+    setTimeout(function() { location.reload(); }, 1000);
+}
