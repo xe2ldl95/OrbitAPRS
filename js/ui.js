@@ -1429,7 +1429,7 @@ function sendBeaconPacket() {
     } else {
         return;
     }
-    var beaconDest = state.beaconDestCall || 'GPS';
+    var beaconDest = state.tocallPosTer;
     var fullPacket = formatAPRSFrame(state.myCall, beaconDest, state.digipath, info);
     addTerminalLine('tx', fullPacket);
     if (state.tnc && state.tnc.connected) {

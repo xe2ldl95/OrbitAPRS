@@ -80,7 +80,7 @@ const state = {
     beaconInterval: 300,
     beaconShareLocation: true,
     beaconMessage: '',
-    beaconDestCall: 'GPS',
+
     stationSymbolTable: '/',
     stationSymbolCode: '[',
     msgRetries: 3,
@@ -284,7 +284,6 @@ function loadSettings() {
                 state.beaconInterval = s.beaconInterval || 300;
                 state.beaconShareLocation = s.beaconShareLocation !== false;
                 state.beaconMessage = s.beaconMessage || '';
-                state.beaconDestCall = s.beaconDestCall || 'GPS';
                 state.stationSymbolTable = s.stationSymbolTable || s.beaconSymbolTable || '/';
                 state.stationSymbolCode = s.stationSymbolCode || s.beaconSymbolCode || '[';
                 state.msgRetries = s.msgRetries !== undefined ? s.msgRetries : 3;
@@ -596,7 +595,6 @@ function persistSettings() {
             beaconInterval: state.beaconInterval,
             beaconShareLocation: state.beaconShareLocation,
             beaconMessage: state.beaconMessage,
-            beaconDestCall: state.beaconDestCall,
             stationSymbolTable: state.stationSymbolTable,
             stationSymbolCode: state.stationSymbolCode,
             msgRetries: state.msgRetries,
