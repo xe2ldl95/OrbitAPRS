@@ -1,24 +1,28 @@
 {
   "name": "orbitaprs",
-  "version": "2.4.8",
+  "version": "0.1.0-rc",
   "private": true,
-  "description": "**APRS satellite and terrestrial communication app** — works in the browser with Web Serial, Web Bluetooth, and WebUSB to connect to KISS TNCs and CH340 devices.",
-  "main": "main.js",
+  "description": "**APRS satellite and terrestrial communication app** — works in the browser with Web Serial, Web Bluetooth, and WebUSB to connect to KISS TNCs and CH340 devices. Native Android via Capacitor.",
+  "type": "module",
   "scripts": {
-    "build": "node build.js",
-    "build:dev": "node build.js --dev",
-    "start": "node build.js --watch",
-    "electron": "electron . --no-sandbox",
-    "electron:dev": "electron . --dev --no-sandbox",
-    "test": "echo \"Error: no test specified\" && exit 1"
+"build": "node build.cjs",
+"build:dev": "node build.cjs --dev",
+"start": "node build.cjs --watch",
+    "cap:init": "cap init",
+    "cap:add": "cap add android",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
+    "cap:build": "cd android && ./gradlew assembleRelease",
+    "test": "node tests/test-tcp-kiss.js"
   },
   "keywords": [
     "aprs",
     "satellite",
     "kiss",
     "tnc",
-    "electron",
-    "desktop"
+    "capacitor",
+    "android",
+    "pwa"
   ],
   "author": "XE2LDL - Luis",
   "license": "MIT",
@@ -30,55 +34,18 @@
     "url": "https://github.com/xe2ldl95/OrbitAPRS/issues"
   },
   "homepage": "https://github.com/xe2ldl95/OrbitAPRS#readme",
-  "devDependencies": {
-    "electron": "^28.2.0",
-    "electron-builder": "^25.1.8",
-    "sharp": "^0.35.3"
+  "dependencies": {
+    "@adeunis/capacitor-serial": "^1.0.0",
+    "@capacitor-community/bluetooth-le": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@e-is/capacitor-bluetooth-serial": "^6.0.0"
   },
-  "build": {
-    "appId": "com.xe2ldl.OrbitAPRS",
-    "productName": "OrbitAPRS",
-    "files": [
-      "dist/**",
-      "main.js",
-      "preload.js",
-      "package.json"
-    ],
-    "directories": {
-      "buildResources": "build-resources",
-      "output": "dist"
-    },
-    "mac": {
-      "category": "public.app-category.utilities",
-      "icon": "build-resources/icon.icns"
-    },
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        }
-      ],
-      "icon": "build-resources/icon.ico"
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb",
-        "rpm"
-      ],
-      "category": "Utility",
-      "icon": "build-resources/icon.png"
-    }
+  "devDependencies": {
+    "@capacitor/android": "^8.0.0",
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.0.0",
+    "canvas": "^3.2.3",
+    "cordova-res": "^0.15.4",
+    "typescript": "^7.0.2"
   }
 }

@@ -7,10 +7,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#0a0d14">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%230a0d14' stroke='%23f0a030' stroke-width='2'/><text x='32' y='42' font-size='32' text-anchor='middle' fill='%23f0a030'>🛰</text></svg>">
-    <link rel="manifest" href="manifest.json?v=2.4.6">
+    <link rel="manifest" href="manifest.json?v=2.4.8">
     <title>OrbitAPRS - Satellite QSO Terminal</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-    <link rel="stylesheet" href="css/style.css?v=2.4.6">
+    <link rel="stylesheet" href="css/style.css?v=2.4.8">
 </head>
 <body>
 
@@ -28,7 +28,7 @@
             <span id="utcDoppler"></span>
         </div>
         <div class="status-indicators">
-            <span style="font-size:0.8em;color:#888;" data-i18n="header.tnc">TNC:</span>
+            <span style="font-size:0.8em;color:#888;cursor:pointer;" onclick="toggleTNCConnection()" data-i18n="header.tnc">TNC:</span>
             <span class="status-dot idle" id="tncStatusDot"></span>
             <span class="sat-selector" onclick="toggleModal('satModal',true)" data-i18n-title="header.select_sat">
                 <span style="font-size:0.8em;color:#888;" data-i18n="header.sat">Sat:</span>
@@ -252,6 +252,9 @@
                         <option value="en" data-i18n="settings.lang_en">English</option>
                     </select>
                 </div>
+                <div class="form-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
+                    <button class="btn btn-outline" style="border-color:var(--red);color:var(--red);" onclick="clearAllData()" data-i18n="btn.clear_data">🗑 Borrar todos los datos</button>
+                </div>
             </div>
 
             <div class="tab-content" id="tab-map" style="display:none;">
@@ -390,39 +393,83 @@
 
             <div class="tab-content" id="tab-licenses" style="display:none;">
                 <div class="licenses-content">
-                    <p><b style="color:var(--text-bright);">OrbitAPRS</b> <span data-i18n="licenses.title">— Satellite QSO Terminal</span></p>
-                    <p><b data-i18n="licenses.version">Version:</b> 2.4.6 <button class="btn btn-sm btn-outline" onclick="forceSWUpdate()" style="font-size:0.7em;vertical-align:middle;padding:1px 6px;" data-i18n-title="licenses.version" title="Forzar actualizaci&oacute;n del service worker">&#x21bb;</button></p>
-                    <p data-i18n="licenses.license">License: MIT</p>
-                    <p style="margin-bottom:4px;" data-i18n="licenses.copyright">Copyright (c) 2026 XE2LDL - Luis</p>
-                    <p style="font-size:0.75em;color:#666;margin:0 0 12px 0;">APRS symbols by OH2LZB &amp; Xastir contributors (CC BY-NC 3.0) — <a href="https://github.com/hessu/aprs-symbols" target="_blank" style="color:#888;">github.com/hessu/aprs-symbols</a></p>
-                    <p style="color:var(--text-bright);font-weight:600;margin-top:16px;" data-i18n="licenses.third_party">Third-party licenses:</p>
-                    <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b>Leaflet 1.9.4</b> <span data-i18n="licenses.leaflet">— BSD-2-Clause</span></p>
-                    <p data-i18n="licenses.leaflet_copyright">Copyright (c) 2010-2024, Volodymyr Agafonkin</p>
-                    <p style="margin-bottom:8px;"><a href="https://leafletjs.com" target="_blank" style="color:var(--accent);">https://leafletjs.com</a></p>
-                    <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b>satellite.js</b> <span data-i18n="licenses.satellitejs">— MIT License</span></p>
-                    <p data-i18n="licenses.satellitejs_copyright">Copyright (c) SatelliteJS Contributors</p>
-                    <p style="margin-bottom:8px;"><a href="https://github.com/satellitejs/satellite.js" target="_blank" style="color:var(--accent);">https://github.com/satellitejs/satellite.js</a></p>
-                    <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b data-i18n="licenses.carto">CartoDB tiles</b> — CC-BY-4.0</p>
-                    <p data-i18n="licenses.carto_attrib">Map tiles by CARTO, &copy; <a href="https://openstreetmap.org/copyright" target="_blank" style="color:var(--accent);">OpenStreetMap contributors</a></p>
-                    <p style="margin-bottom:8px;"><a href="https://carto.com/attribution" target="_blank" style="color:var(--accent);">https://carto.com/attribution</a></p>
-                    <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b data-i18n="licenses.tle">TLE orbital data</b> — Public Domain</p>
-                    <p data-i18n="licenses.tle_attrib">Provided by <a href="https://celestrak.org" target="_blank" style="color:var(--accent);">Celestrak</a> / Dr. T.S. Kelso</p>
-                    <p style="margin-bottom:8px;" data-i18n="licenses.amsat">Additional data from <a href="https://amsat.org" target="_blank" style="color:var(--accent);">AMSAT</a></p>
-                    <hr style="border-color:var(--border);margin:8px 0;">
-                    <p><b data-i18n="licenses.icons">Icons</b></p>
-                    <p style="margin-bottom:8px;" data-i18n="licenses.icons_attrib">PWA icons generated with Google Gemini AI</p>
-                    <hr style="border-color:var(--border);margin:8px 0;">
-                    <p style="font-size:0.85em;color:#666;" data-i18n="licenses.description">OrbitAPRS is an open-source project for amateur radio satellite communication.</p>
-                    <hr style="border-color:var(--border);margin:8px 0;">
-                    <p style="font-size:0.8em;color:#555;font-style:italic;border-left:3px solid var(--accent);padding-left:10px;margin-top:10px;" data-i18n="licenses.disclaimer">
-                    <b>Disclaimer:</b> This project is built as a hobby and is published solely to share enthusiasm.
-                    It is provided "as is", without any warranty or liability of any kind.
-                    Built with AI assistance.
-                    </p>
+                    <div class="app-header">OrbitAPRS <span data-i18n="licenses.title">— Satellite QSO Terminal</span></div>
+                    <div class="app-meta">
+                        <span><b data-i18n="licenses.version">Version:</b> 2.4.8 PWA / 0.1.0-rc <b>Android Version</b> <button class="btn btn-sm btn-outline" onclick="forceSWUpdate()" style="font-size:0.7em;vertical-align:middle;padding:1px 6px;" data-i18n-title="licenses.version" title="Forzar actualizaci&oacute;n del service worker">&#x21bb;</button></span>
+                        <span class="sep">|</span>
+                        <span data-i18n="licenses.license">License: MIT</span>
+                    </div>
+                    <div class="app-copyright" data-i18n="licenses.copyright">Copyright (c) 2026 XE2LDL - Luis</div>
+
+                    <div class="section-title" data-i18n="licenses.third_party">Third-party licenses:</div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">Leaflet 1.9.4 <span style="font-weight:400;color:#888;">— BSD-2-Clause</span></div>
+                        <div class="lib-detail" data-i18n="licenses.leaflet_copyright">Copyright (c) 2010-2024, Volodymyr Agafonkin</div>
+                        <div class="lib-detail"><a href="https://leafletjs.com" target="_blank">leafletjs.com</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">satellite.js <span style="font-weight:400;color:#888;">— MIT License</span></div>
+                        <div class="lib-detail" data-i18n="licenses.satellitejs_copyright">Copyright (c) SatelliteJS Contributors</div>
+                        <div class="lib-detail"><a href="https://github.com/satellitejs/satellite.js" target="_blank">github.com/satellitejs/satellite.js</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">CartoDB tiles <span style="font-weight:400;color:#888;">— CC-BY-4.0</span></div>
+                        <div class="lib-detail" data-i18n="licenses.carto_attrib">Map tiles by CARTO, &copy; <a href="https://openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a></div>
+                        <div class="lib-detail"><a href="https://carto.com/attribution" target="_blank">carto.com/attribution</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">APRS symbols <span style="font-weight:400;color:#888;">— CC BY-NC 3.0</span></div>
+                        <div class="lib-detail">OH2LZB &amp; Xastir contributors</div>
+                        <div class="lib-detail"><a href="https://github.com/hessu/aprs-symbols" target="_blank">github.com/hessu/aprs-symbols</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name" data-i18n="licenses.tle">TLE orbital data <span style="font-weight:400;color:#888;">— Public Domain</span></div>
+                        <div class="lib-detail" data-i18n="licenses.tle_attrib">Provided by Celestrak / Dr. T.S. Kelso</div>
+                        <div class="lib-detail"><a href="https://celestrak.org" target="_blank">celestrak.org</a> — <a href="https://amsat.org" target="_blank">AMSAT</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">Capacitor <span style="font-weight:400;color:#888;">— Apache-2.0 / MIT</span></div>
+                        <div class="lib-detail">Cross-platform native runtime by Ionic</div>
+                        <div class="lib-detail">@capacitor/core, @capacitor/android, @capacitor/assets</div>
+                        <div class="lib-detail"><a href="https://capacitorjs.com" target="_blank">capacitorjs.com</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">@adeunis/capacitor-serial <span style="font-weight:400;color:#888;">— MIT</span></div>
+                        <div class="lib-detail">USB Serial plugin for Capacitor (CH340, FTDI, CP210x)</div>
+                        <div class="lib-detail"><a href="https://github.com/adeunis/capacitor-serial" target="_blank">github.com/adeunis/capacitor-serial</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">@capacitor-community/bluetooth-le <span style="font-weight:400;color:#888;">— MIT</span></div>
+                        <div class="lib-detail">Bluetooth Low Energy plugin for Capacitor</div>
+                        <div class="lib-detail"><a href="https://github.com/capacitor-community/bluetooth-le" target="_blank">github.com/capacitor-community/bluetooth-le</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">@e-is/capacitor-bluetooth-serial <span style="font-weight:400;color:#888;">— MIT</span></div>
+                        <div class="lib-detail">Bluetooth Classic SPP plugin for Capacitor</div>
+                        <div class="lib-detail"><a href="https://github.com/e-is/capacitor-bluetooth-serial" target="_blank">github.com/e-is/capacitor-bluetooth-serial</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name" data-i18n="licenses.icons">Icons</div>
+                        <div class="lib-detail" data-i18n="licenses.icons_attrib">PWA icons generated with Google Gemini AI. Android icons adapted from PWA source.</div>
+                    </div>
+
+                    <div class="about" data-i18n="licenses.description">OrbitAPRS is an open-source project for amateur radio satellite communication.</div>
+
+                    <div class="disclaimer" data-i18n="licenses.disclaimer">
+                        <b>Disclaimer:</b> This project is built as a hobby and is published solely to share enthusiasm.
+                        It is provided "as is", without any warranty or liability of any kind.
+                        Built with AI assistance.
+                    </div>
                 </div>
             </div>
 
@@ -479,17 +526,28 @@
         </div>
     </div>
 
-    <script src="js/satellite-lib.js?v=2.4.6"></script>
-    <script src="js/i18n.js?v=2.4.6"></script>
-    <script src="js/app.js?v=2.4.6"></script>
-    <script src="js/ui.js?v=2.4.6"></script>
-    <script src="js/satellite.js?v=2.4.6"></script>
-    <script src="js/aprs.js?v=2.4.6"></script>
-    <script src="js/tnc.js?v=2.4.6"></script>
-    <script src="js/logging.js?v=2.4.6"></script>
+    <div class="modal-overlay" id="btDeviceModal">
+        <div class="modal" style="max-width:400px;">
+            <h3>Bluetooth SPP Devices</h3>
+            <p id="btDeviceStatus" style="font-size:0.85em;color:#888;margin-bottom:8px;">Scanning...</p>
+            <div id="btDeviceList" style="max-height:300px;overflow-y:auto;"></div>
+            <div class="btn-row" style="margin-top:12px;">
+                <button class="btn btn-outline" onclick="cancelBtDevicePicker()" data-i18n="btn.cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/satellite-lib.js?v=2.4.8"></script>
+    <script src="js/i18n.js?v=2.4.8"></script>
+    <script src="js/app.js?v=2.4.8"></script>
+    <script src="js/ui.js?v=2.4.8"></script>
+    <script src="js/satellite.js?v=2.4.8"></script>
+    <script src="js/aprs.js?v=2.4.8"></script>
+    <script src="js/tnc.js?v=2.4.8"></script>
+    <script src="js/logging.js?v=2.4.8"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-    <script src="js/map.js?v=2.4.6"></script>
-    <script src="js/nav.js?v=2.4.6"></script>
+    <script src="js/map.js?v=2.4.8"></script>
+    <script src="js/nav.js?v=2.4.8"></script>
     <script>function forceSWUpdate(){if('serviceWorker'in navigator)navigator.serviceWorker.getRegistrations().then(function(r){r.forEach(function(r){r.unregister()})});setTimeout(function(){location.reload()},500)}</script>
     <script>init(); if (typeof mapView !== 'undefined') mapView.init(); if (typeof navView !== 'undefined') navView.init();</script>
     <script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').then(function(reg) { if (reg.active && typeof sendToSW === 'function') { sendToSW({ type: 'SET_TILE_CACHE', enabled: state.mapTileCache !== false }); } }).catch(function(){});</script>

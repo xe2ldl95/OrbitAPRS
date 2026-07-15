@@ -1,3 +1,8 @@
+// Capacitor platform detection
+function _isCapacitorNative() {
+    return typeof window !== 'undefined' && typeof window.Capacitor?.isNativePlatform === 'function' && window.Capacitor.isNativePlatform();
+}
+
 const KISS_FEND = 0xC0;
 const KISS_FESC = 0xDB;
 const KISS_TFEND = 0xDC;
@@ -177,7 +182,6 @@ class TCPTransport {
         this.isConnecting = false;
     }
 }
-
 function kissEncode(data) {
     const r = [KISS_FEND, 0x00];
     for (let i = 0; i < data.length; i++) {
@@ -269,11 +273,28 @@ class TNC {
 
     async connect(type, port, baud) {
         try {
-            if (type === 'serial') await this._connectSerial(port, baud);
-            else if (type === 'bluetooth') await this._connectBluetooth();
-            else if (type === 'webusb') await this._connectWebUSB(port, baud);
-            else if (type === 'tcp') await this._connectTCP(port, baud);
-            else throw new Error('Unknown TNC type: ' + type);
+            const isCapacitor = _isCapacitorNative();
+            if (isCapacitor) {
+                // Android: map new type names to Capacitor transports
+                // Also accept old type names as fallback in case migration didn't run
+                const androidType = {
+                    'capSerial': 'capSerial', 'serial': 'capSerial', 'webusb': 'capSerial',
+                    'capSPP': 'capSPP',
+                    'capBLE': 'capBLE', 'bluetooth': 'capBLE'
+                }[type];
+                if (androidType === 'capSerial') await this._connectCapacitorSerial(baud);
+                else if (androidType === 'capSPP') await this._connectCapacitorSPP();
+                else if (androidType === 'capBLE') await this._connectCapacitorBLE();
+                else if (type === 'tcp') await this._connectTCP(port, baud);
+                else throw new Error('Unknown TNC type: ' + type);
+            } else {
+                // Desktop: use Web APIs
+                if (type === 'serial') await this._connectSerial(port, baud);
+                else if (type === 'bluetooth') await this._connectBluetooth();
+                else if (type === 'webusb') await this._connectWebUSB(port, baud);
+                else if (type === 'tcp') await this._connectTCP(port, baud);
+                else throw new Error('Unknown TNC type: ' + type);
+            }
             this.connected = true;
             const btLabel = (type === 'serial' && this.transport && this._isBluetoothPort(this.transport))
                 ? ' \u2014 Bluetooth SPP' : '';
@@ -303,6 +324,14 @@ class TNC {
 
     // ── Serial (Web Serial API — USB or Bluetooth SPP) ──
     async _connectSerial(requestedPort, baud) {
+        const isCapacitor = _isCapacitorNative();
+
+        // Capacitor (Android): use @adeunis/capacitor-serial for USB
+        if (isCapacitor) {
+            await this._connectCapacitorSerial(baud);
+            return;
+        }
+
         if (!navigator.serial) throw new Error('Web Serial not supported. Use Chrome/Edge via HTTPS or localhost.');
         if (!window.isSecureContext) throw new Error('Secure context required. Open via https:// or http://localhost (not file://).');
         const isAndroid = /android/i.test(navigator.userAgent);
@@ -386,6 +415,114 @@ class TNC {
             : 'Cannot open TNC. Close Arduino IDE, unplug/replug the TNC, and try again.');
     }
 
+    // ── Capacitor Serial (USB CDC/ACM + CH340 via @adeunis/capacitor-serial) ──
+    async _connectCapacitorSerial(baud) {
+        const { Serial } = window.Capacitor.Plugins;
+
+        try {
+            const perm = await Serial.requestSerialPermissions();
+            if (!perm.granted) {
+                throw new Error('USB serial permission denied. Check USB device filter in AndroidManifest.xml.');
+            }
+        } catch (err) {
+            throw new Error('Failed to request USB serial permission: ' + err.message);
+        }
+
+        try {
+            await Serial.openConnection({
+                baudRate: baud || 38400,
+                dataBits: 8,
+                stopBits: 1,
+                parity: 'none',
+                dtr: true,
+                rts: true,
+                driver: 'Ch34xSerialDriver'
+            });
+        } catch (err) {
+            throw new Error('Failed to open serial connection: ' + err.message + '\nEnsure CH340 device is connected via OTG.');
+        }
+
+        // Register read callback - receives Base64 encoded data
+        await Serial.registerReadRawCallback((result) => {
+            if (result && result.data && this.connected) {
+                const base64 = result.data;
+                const binary = atob(base64);
+                const bytes = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    bytes[i] = binary.charCodeAt(i);
+                }
+                this._feedBytes(bytes);
+            }
+        });
+
+        // Writer using writeHexadecimal for binary data
+        this._writer = {
+            write: async (data) => {
+                const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
+                await Serial.writeHexadecimal({ data: hex });
+            }
+        };
+
+        this.transport = { _type: 'capSerial' };
+        this._onClose = () => this._onTransportClose();
+
+        addTerminalLine('system', 'Capacitor Serial (USB/CH340) connected at ' + (baud || 38400) + ' baud');
+    }
+
+    // ── Capacitor Bluetooth Classic SPP (HC-05/06 via @e-is/capacitor-bluetooth-serial) ──
+    async _connectCapacitorSPP() {
+        const { BluetoothSerial } = window.Capacitor.Plugins;
+
+        addTerminalLine('system', 'Scanning for Bluetooth SPP devices...');
+        const scanResult = await BluetoothSerial.scan();
+        const devices = scanResult.devices || [];
+
+        if (devices.length === 0) {
+            throw new Error('No Bluetooth SPP devices found. Pair HC-05/06 in Android Bluetooth settings first.');
+        }
+
+        // Show device picker and wait for user selection
+        const device = await _showBtDevicePicker(devices);
+        if (!device) {
+            addTerminalLine('system', 'Bluetooth SPP selection cancelled');
+            throw new Error('Device selection cancelled');
+        }
+
+        this._capSPPAddress = device.address;
+        addTerminalLine('system', 'Connecting to ' + device.name + ' (' + device.address + ')...');
+
+        await BluetoothSerial.connect({ address: this._capSPPAddress });
+
+        // Start notifications with KISS FEND delimiter
+        await BluetoothSerial.startNotifications({
+            address: this._capSPPAddress,
+            delimiter: '\xC0'
+        });
+
+        // Listen for data
+        BluetoothSerial.addListener('onRead', (data) => {
+            if (data && data.value) {
+                const str = data.value;
+                const bytes = new Uint8Array(str.length);
+                for (let i = 0; i < str.length; i++) {
+                    bytes[i] = str.charCodeAt(i);
+                }
+                this._feedBytes(bytes);
+            }
+        });
+
+        this.transport = { _type: 'capSPP', address: this._capSPPAddress };
+        this._writer = {
+            write: async (data) => {
+                // Convert Uint8Array to string (Latin-1 mapping for byte preservation)
+                const str = Array.from(data).map(b => String.fromCharCode(b)).join('');
+                return BluetoothSerial.write({ address: this._capSPPAddress, value: str });
+            }
+        };
+
+        addTerminalLine('system', 'Bluetooth SPP (HC-05/06) connected');
+    }
+
     async _readLoopSerial(port) {
         try {
             while (port.readable && !this._disconnecting) {
@@ -416,6 +553,14 @@ class TNC {
 
     // ── Bluetooth (Web Bluetooth API) ──
     async _connectBluetooth() {
+        const isCapacitor = _isCapacitorNative();
+
+        // Capacitor (Android): use @capacitor-community/bluetooth-le for BLE Nordic UART
+        if (isCapacitor) {
+            await this._connectCapacitorBLE();
+            return;
+        }
+
         if (!navigator.bluetooth) throw new Error('Web Bluetooth not supported. Use Chrome/Edge on Android or desktop.');
         const isAndroid = /android/i.test(navigator.userAgent);
         const NUS_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
@@ -465,8 +610,69 @@ class TNC {
         await notifyChar.startNotifications();
     }
 
+    // ── Capacitor BLE Nordic UART (HM-10/ESP32 via @capacitor-community/bluetooth-le) ──
+    async _connectCapacitorBLE() {
+        const { BluetoothLe } = window.Capacitor.Plugins;
+        const NUS_SERVICE = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+        const NUS_TX_CHAR = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+        const NUS_RX_CHAR = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+
+        await BluetoothLe.initialize();
+
+        addTerminalLine('system', 'Scanning for BLE TNC (Nordic UART)...');
+        const device = await BluetoothLe.requestDevice({
+            services: [NUS_SERVICE]
+        });
+
+        this._capBLEDeviceId = device.deviceId;
+        addTerminalLine('system', 'Connecting to ' + device.name + '...');
+
+        await BluetoothLe.connect({ deviceId: this._capBLEDeviceId });
+
+        this._capBLENotificationListener = await BluetoothLe.addListener(
+            `notification|${this._capBLEDeviceId}|${NUS_SERVICE}|${NUS_TX_CHAR}`,
+            (event) => {
+                if (event && event.value && this.connected) {
+                    const hex = event.value;
+                    const len = hex.length / 2;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
+                    }
+                    this._feedBytes(bytes);
+                }
+            }
+        );
+        await BluetoothLe.startNotifications({
+            deviceId: this._capBLEDeviceId,
+            service: NUS_SERVICE,
+            characteristic: NUS_TX_CHAR
+        });
+
+        this.transport = { _type: 'capBLE', deviceId: this._capBLEDeviceId };
+        this._writer = {
+            write: async (data) => {
+                const hex = Array.from(data).map(b => b.toString(16).padStart(2, '0')).join('');
+                await BluetoothLe.write({
+                    deviceId: this._capBLEDeviceId,
+                    service: NUS_SERVICE,
+                    characteristic: NUS_RX_CHAR,
+                    value: hex
+                });
+            }
+        };
+
+        addTerminalLine('system', 'BLE Nordic UART (HM-10/ESP32) connected');
+    }
+
     // ── WebUSB (CH340/CH341 direct USB transport) ──
     async _connectWebUSB(requestedPort, baud) {
+        const isCapacitor = _isCapacitorNative();
+        if (isCapacitor) {
+            await this._connectCapacitorSerial(baud);
+            return;
+        }
+
         if (!navigator.usb) throw new Error('WebUSB not supported. Use Chrome/Edge on Android or desktop.');
         if (!window.isSecureContext) throw new Error('Secure context required.');
 
@@ -620,7 +826,7 @@ class TNC {
     }
 
     // ── Disconnect ──
-    disconnect() {
+    async disconnect() {
         this._disconnecting = true;
         this.connected = false;
         if (this.transport && this.transport._type === 'webusb') {
@@ -643,6 +849,29 @@ class TNC {
                     this.transport.socket.removeEventListener('close', this._tcpDisconnectHandler);
                 }
                 this.transport.disconnect();
+            } catch (_) {}
+        } else if (this.transport && this.transport._type === 'capSerial') {
+            // Capacitor USB Serial
+            const { Serial } = window.Capacitor.Plugins;
+            try {
+                await Serial.closeConnection();
+            } catch (_) {}
+        } else if (this.transport && this.transport._type === 'capSPP') {
+            // Capacitor Bluetooth SPP
+            const { BluetoothSerial } = window.Capacitor.Plugins;
+            try {
+                await BluetoothSerial.disconnect({ address: this._capSPPAddress });
+                BluetoothSerial.removeAllListeners();
+            } catch (_) {}
+        } else if (this.transport && this.transport._type === 'capBLE') {
+            // Capacitor BLE
+            const { BluetoothLe } = window.Capacitor.Plugins;
+            try {
+                if (this._capBLENotificationListener) {
+                    this._capBLENotificationListener.remove();
+                    this._capBLENotificationListener = null;
+                }
+                await BluetoothLe.disconnect({ deviceId: this._capBLEDeviceId });
             } catch (_) {}
         } else {
             // Cancel reader first to release the lock
@@ -754,6 +983,69 @@ class TNC {
     }
 }
 
+// ── Bluetooth device picker ──
+function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(str));
+    return div.innerHTML;
+}
+
+let _btPickerResolve = null;
+let _btPickerReject = null;
+
+function _showBtDevicePicker(devices) {
+    return new Promise((resolve, reject) => {
+        _btPickerResolve = resolve;
+        _btPickerReject = reject;
+
+        const list = document.getElementById('btDeviceList');
+        const status = document.getElementById('btDeviceStatus');
+        if (!list || !status) {
+            reject(new Error('BT picker UI not found'));
+            return;
+        }
+
+        status.textContent = devices.length + ' device(s) found. Select a device:';
+        list.innerHTML = devices.map((d, i) => {
+            const name = d.name || '(unnamed)';
+            const addr = d.address || '';
+            return '<button class="btn btn-outline bt-device-btn" data-index="' + i + '" style="display:block;width:100%;text-align:left;margin-bottom:4px;padding:8px 12px;font-size:0.85em;overflow:hidden;text-overflow:ellipsis;">' +
+                '<span style="font-weight:bold;">' + escapeHtml(name) + '</span>' +
+                (addr ? '<br><span style="font-size:0.8em;color:#888;">' + escapeHtml(addr) + '</span>' : '') +
+                '</button>';
+        }).join('');
+
+        // Add click handlers
+        list.querySelectorAll('.bt-device-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const idx = parseInt(btn.dataset.index, 10);
+                const device = devices[idx];
+                _closeBtPicker();
+                if (_btPickerResolve) {
+                    _btPickerResolve(device);
+                    _btPickerResolve = null;
+                }
+            });
+        });
+
+        toggleModal('btDeviceModal', true);
+    });
+}
+
+function cancelBtDevicePicker() {
+    _closeBtPicker();
+    if (_btPickerReject) {
+        _btPickerReject(new Error('Bluetooth device selection cancelled'));
+        _btPickerReject = null;
+    }
+}
+
+function _closeBtPicker() {
+    _btPickerResolve = null;
+    _btPickerReject = null;
+    toggleModal('btDeviceModal', false);
+}
+
 if (typeof globalThis !== 'undefined') {
     globalThis.TCPTransport = TCPTransport;
     globalThis.TNC = TNC;
@@ -761,4 +1053,5 @@ if (typeof globalThis !== 'undefined') {
     globalThis.kissDecode = kissDecode;
     globalThis.kissCommandEncode = kissCommandEncode;
     globalThis.kissDecodeRaw = kissDecodeRaw;
+    globalThis.cancelBtDevicePicker = cancelBtDevicePicker;
 }

@@ -395,7 +395,7 @@
                 <div class="licenses-content">
                     <div class="app-header">OrbitAPRS <span data-i18n="licenses.title">— Satellite QSO Terminal</span></div>
                     <div class="app-meta">
-                        <span><b data-i18n="licenses.version">Version:</b> 2.4.8 <button class="btn btn-sm btn-outline" onclick="forceSWUpdate()" style="font-size:0.7em;vertical-align:middle;padding:1px 6px;" data-i18n-title="licenses.version" title="Forzar actualizaci&oacute;n del service worker">&#x21bb;</button></span>
+                        <span><b data-i18n="licenses.version">Version:</b> 2.4.8 PWA / 0.1.0-rc <b>Android Version</b> <button class="btn btn-sm btn-outline" onclick="forceSWUpdate()" style="font-size:0.7em;vertical-align:middle;padding:1px 6px;" data-i18n-title="licenses.version" title="Forzar actualizaci&oacute;n del service worker">&#x21bb;</button></span>
                         <span class="sep">|</span>
                         <span data-i18n="licenses.license">License: MIT</span>
                     </div>
@@ -434,8 +434,33 @@
                     </div>
 
                     <div class="lib-entry">
+                        <div class="lib-name">Capacitor <span style="font-weight:400;color:#888;">— Apache-2.0 / MIT</span></div>
+                        <div class="lib-detail">Cross-platform native runtime by Ionic</div>
+                        <div class="lib-detail">@capacitor/core, @capacitor/android, @capacitor/assets</div>
+                        <div class="lib-detail"><a href="https://capacitorjs.com" target="_blank">capacitorjs.com</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">@adeunis/capacitor-serial <span style="font-weight:400;color:#888;">— MIT</span></div>
+                        <div class="lib-detail">USB Serial plugin for Capacitor (CH340, FTDI, CP210x)</div>
+                        <div class="lib-detail"><a href="https://github.com/adeunis/capacitor-serial" target="_blank">github.com/adeunis/capacitor-serial</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">@capacitor-community/bluetooth-le <span style="font-weight:400;color:#888;">— MIT</span></div>
+                        <div class="lib-detail">Bluetooth Low Energy plugin for Capacitor</div>
+                        <div class="lib-detail"><a href="https://github.com/capacitor-community/bluetooth-le" target="_blank">github.com/capacitor-community/bluetooth-le</a></div>
+                    </div>
+
+                    <div class="lib-entry">
+                        <div class="lib-name">@e-is/capacitor-bluetooth-serial <span style="font-weight:400;color:#888;">— MIT</span></div>
+                        <div class="lib-detail">Bluetooth Classic SPP plugin for Capacitor</div>
+                        <div class="lib-detail"><a href="https://github.com/e-is/capacitor-bluetooth-serial" target="_blank">github.com/e-is/capacitor-bluetooth-serial</a></div>
+                    </div>
+
+                    <div class="lib-entry">
                         <div class="lib-name" data-i18n="licenses.icons">Icons</div>
-                        <div class="lib-detail" data-i18n="licenses.icons_attrib">PWA icons generated with Google Gemini AI</div>
+                        <div class="lib-detail" data-i18n="licenses.icons_attrib">PWA icons generated with Google Gemini AI. Android icons adapted from PWA source.</div>
                     </div>
 
                     <div class="about" data-i18n="licenses.description">OrbitAPRS is an open-source project for amateur radio satellite communication.</div>
@@ -497,6 +522,17 @@
             <div id="symbolPickerContent"></div>
             <div class="btn-row" style="margin-top:12px;">
                 <button class="btn btn-outline" onclick="toggleModal('symbolPickerModal',false)" data-i18n="btn.cancel">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="btDeviceModal">
+        <div class="modal" style="max-width:400px;">
+            <h3>Bluetooth SPP Devices</h3>
+            <p id="btDeviceStatus" style="font-size:0.85em;color:#888;margin-bottom:8px;">Scanning...</p>
+            <div id="btDeviceList" style="max-height:300px;overflow-y:auto;"></div>
+            <div class="btn-row" style="margin-top:12px;">
+                <button class="btn btn-outline" onclick="cancelBtDevicePicker()" data-i18n="btn.cancel">Cancel</button>
             </div>
         </div>
     </div>

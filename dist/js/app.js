@@ -80,7 +80,7 @@ const state = {
     beaconInterval: 300,
     beaconShareLocation: true,
     beaconMessage: '',
-    beaconDestCall: 'GPS',
+
     stationSymbolTable: '/',
     stationSymbolCode: '[',
     msgRetries: 3,
@@ -164,12 +164,18 @@ function init() {
     if (typeof applyLanguage === 'function') applyLanguage();
     if (typeof startAckTimer === 'function' && state.msgRetries > 0) startAckTimer();
 
+    // Adjust TNC dropdown for Capacitor (Android)
+    updateTncTypeDropdown();
+
     document.getElementById('terminal').innerHTML =
         '<div class="line system"><span class="timestamp">[READY]</span> ' + t('terminal.ready') + '</div>';
     if (location.protocol === 'file:') {
         addTerminalLine('system', t('terminal.file_warning'));
     }
     document.getElementById('setTncType').addEventListener('change', toggleBluetoothFields);
+    document.getElementById('setTncType').addEventListener('change', function() {
+        state.tncType = this.value;
+    });
     toggleBluetoothFields();
     if (typeof loadChatMessages === 'function') loadChatMessages();
     
@@ -199,13 +205,23 @@ function toggleBluetoothFields() {
     const baudGroup = document.getElementById('setTncBaud').closest('.form-group');
     const tcpHostPortGroup = document.querySelectorAll('.tcp-host-port');
     
-    if (type === 'bluetooth' || type === 'tcp') {
-        baudGroup.style.display = 'none';
-    } else {
+    // Android Capacitor types: capSerial (USB), capSPP (BT Classic), capBLE (BT LE)
+    // Desktop types: serial (USB + BT SPP), bluetooth (BLE), webusb (USB), tcp
+    const isSerialType = type === 'serial' || type === 'capSerial';
+    const isBluetoothSPPType = type === 'capSPP';
+    const isBluetoothLEType = type === 'bluetooth' || type === 'capBLE';
+    const isWebUSBType = type === 'webusb';
+    const isTCPType = type === 'tcp';
+    
+    // Show baud rate for USB serial and WebUSB
+    if (isSerialType || isWebUSBType) {
         baudGroup.style.display = '';
+    } else {
+        baudGroup.style.display = 'none';
     }
     
-    if (type === 'tcp') {
+    // Show TCP host/port only for TCP
+    if (isTCPType) {
         tcpHostPortGroup.forEach(el => el.style.display = '');
     } else {
         tcpHostPortGroup.forEach(el => el.style.display = 'none');
@@ -227,6 +243,11 @@ function loadSettings() {
                 state.myAlt = s.myAlt || 50;
                 state.qsoLog = s.qsoLog || [];
                 state.tncType = s.tncType || 'serial';
+                // Migrate old TNC type names for Capacitor (Android)
+                if (typeof _isCapacitorNative === 'function' && _isCapacitorNative()) {
+                    const typeMap = { 'serial': 'capSerial', 'bluetooth': 'capBLE', 'webusb': 'capSerial' };
+                    if (typeMap[state.tncType]) state.tncType = typeMap[state.tncType];
+                }
                 state.tncHost = s.tncHost || 'localhost';
                 state.tncPort = s.tncPort || '8001';
                 state.tncBaud = s.tncBaud || '57600';
@@ -284,7 +305,6 @@ function loadSettings() {
                 state.beaconInterval = s.beaconInterval || 300;
                 state.beaconShareLocation = s.beaconShareLocation !== false;
                 state.beaconMessage = s.beaconMessage || '';
-                state.beaconDestCall = s.beaconDestCall || 'GPS';
                 state.stationSymbolTable = s.stationSymbolTable || s.beaconSymbolTable || '/';
                 state.stationSymbolCode = s.stationSymbolCode || s.beaconSymbolCode || '[';
                 state.msgRetries = s.msgRetries !== undefined ? s.msgRetries : 3;
@@ -596,7 +616,6 @@ function persistSettings() {
             beaconInterval: state.beaconInterval,
             beaconShareLocation: state.beaconShareLocation,
             beaconMessage: state.beaconMessage,
-            beaconDestCall: state.beaconDestCall,
             stationSymbolTable: state.stationSymbolTable,
             stationSymbolCode: state.stationSymbolCode,
             msgRetries: state.msgRetries,
@@ -672,3 +691,42 @@ function getUTCShort() {
 function getUTCNow() {
     return new Date().toISOString().replace('T', ' ').slice(0, 19);
 }
+
+function clearAllData() {
+    if (!confirm(t('confirm.clear_data'))) return;
+    localStorage.removeItem('orbitaprs_settings');
+    localStorage.removeItem('orbitaprs_tle');
+    localStorage.removeItem('orbitaprs_chatmessages');
+    showToast(t('toast.data_cleared'));
+    setTimeout(function() { location.reload(); }, 1000);
+}
+
+function _isCapacitorNative() {
+    return typeof window !== 'undefined' && typeof window.Capacitor?.isNativePlatform === 'function' && window.Capacitor.isNativePlatform();
+}
+
+function updateTncTypeDropdown() {
+    const isCapacitor = _isCapacitorNative();
+    const select = document.getElementById('setTncType');
+    if (!select) return;
+
+    if (isCapacitor) {
+        // Android: USB Serial, Bluetooth SPP, Bluetooth LE (no TCP)
+        select.innerHTML = `
+            <option value="capSerial" data-i18n="label.tnc_serial">USB Serial (CH340)</option>
+            <option value="capSPP" data-i18n="label.tnc_spp">Bluetooth SPP (HC-05/06)</option>
+            <option value="capBLE" data-i18n="label.tnc_ble">Bluetooth LE (HM-10/ESP32)</option>
+        `;
+        // Apply current language
+        if (typeof applyLanguage === 'function') {
+            select.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                el.textContent = t(key);
+            });
+        }
+    }
+    // Desktop: keep original options
+}
+
+// Expose for Capacitor detection
+globalThis._isCapacitorNative = _isCapacitorNative;

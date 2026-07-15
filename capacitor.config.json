@@ -1,0 +1,41 @@
+{
+  "appId": "com.xe2ldl.orbitaprs",
+  "appName": "OrbitAPRS",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true,
+    "overrideUserAgent": "OrbitAPRS/0.1.0-rc Capacitor/Android"
+  },
+  "plugins": {
+    "BluetoothLe": {
+      "displayStrings": {
+        "scanning": "Escaneando dispositivos BLE...",
+        "cancel": "Cancelar",
+        "noDeviceFound": "No se encontraron dispositivos BLE",
+        "selectDevice": "Seleccionar dispositivo BLE"
+      }
+    },
+    "Serial": {
+      "displayStrings": {
+        "promptTitle": "Seleccionar puerto serie",
+        "promptMessage": "Conecta tu TNC USB (CH340/Arduino Nano) y selecciónalo",
+        "cancel": "Cancelar",
+        "noPortsFound": "No se encontraron puertos USB serie"
+      }
+    },
+    "BluetoothSerial": {
+      "displayStrings": {
+        "promptTitle": "Seleccionar dispositivo Bluetooth",
+        "promptMessage": "Empareja tu HC-05/HC-06 en Ajustes de Android y selecciónalo aquí",
+        "cancel": "Cancelar",
+        "noDevicesFound": "No se encontraron dispositivos SPP emparejados"
+      }
+    }
+  }
+}
