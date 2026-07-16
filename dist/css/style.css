@@ -213,9 +213,46 @@ body {
     color: #aaa;
     line-height: 1.6;
 }
-.licenses-content p { margin: 4px 0; }
-.licenses-content a { color: var(--accent); text-decoration: none; }
-.licenses-content a:hover { text-decoration: underline; }
+.licenses-content .app-header {
+    color: var(--text-bright);
+    font-weight: 600;
+    font-size: 1.05em;
+    margin-bottom: 2px;
+}
+.licenses-content .app-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 4px 0 2px;
+    color: #999;
+}
+.licenses-content .app-meta .sep { color: #555; }
+.licenses-content .app-copyright { margin-bottom: 10px; color: #888; }
+.licenses-content .section-title {
+    color: var(--text-bright);
+    font-weight: 600;
+    margin: 14px 0 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+}
+.licenses-content .lib-entry { margin-bottom: 10px; }
+.licenses-content .lib-name {
+    color: var(--text-bright);
+    font-weight: 600;
+}
+.licenses-content .lib-detail { color: #888; margin: 1px 0 0 12px; }
+.licenses-content .lib-detail a { color: var(--accent); text-decoration: none; }
+.licenses-content .lib-detail a:hover { text-decoration: underline; }
+.licenses-content .about { margin-top: 14px; color: #888; }
+.licenses-content .disclaimer {
+    font-size: 0.9em;
+    color: #666;
+    font-style: italic;
+    border-left: 3px solid var(--accent);
+    padding-left: 10px;
+    margin-top: 12px;
+}
 
 .macro-row {
     display: flex; align-items: center; gap: 4px; margin-bottom: 4px;
@@ -312,7 +349,7 @@ body {
 .map-follow-btn:hover { border-color: var(--green); background: #0a1a0a; }
 .map-follow-btn.fixed { color: #666; border-color: #333; }
 #mapContainer {
-    flex: 1; min-height: 200px; display: none; position: relative;
+    flex: 1; min-height: 150px; display: none; position: relative;
     background: #0a0d14; z-index: 1;
 }
 #mapContainer.active { display: block; }
@@ -323,13 +360,13 @@ body {
 .terminal-panel.chat-active .terminal { display: none; }
 .terminal-panel.chat-active #chatContainer { display: flex; }
 #navContainer {
-    flex: 1; min-height: 200px; display: none; position: relative;
+    flex: 1; min-height: 150px; display: none; position: relative;
     background: #0a0d14; z-index: 1; align-items: center; justify-content: center;
 }
 #navContainer canvas { display: block; }
 
 #chatContainer {
-    flex: 1; min-height: 200px; display: none; position: relative;
+    flex: 1; min-height: 150px; display: none; position: relative;
     background: #0a0d14; z-index: 1;
 }
 .chat-layout { display: flex; flex: 1; min-height: 0; }
