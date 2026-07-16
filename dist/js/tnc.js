@@ -492,13 +492,12 @@ class TNC {
         // Find endpoints - prefer bulk IN for data, fall back to interrupt for status
         const iface = device.configuration.interfaces[0];
         const alt = iface.alternates[0] || iface;
-        let outEp, inEp, inEpInt;
+        let outEp, inEp;
         const epInfo = [];
         for (const ep of alt.endpoints) {
             epInfo.push('EP0x' + ep.endpointNumber.toString(16) + ' ' + ep.type + ' ' + ep.direction + ' pkt=' + ep.packetSize);
             if (ep.type === 'bulk' && ep.direction === 'out') outEp = ep.endpointNumber;
             if (ep.type === 'bulk' && ep.direction === 'in') inEp = ep.endpointNumber;
-            if (ep.type === 'interrupt' && ep.direction === 'in') inEpInt = ep.endpointNumber;
         }
         addTerminalLine('system', 'USB endpoints: ' + epInfo.join(', '));
         if (!outEp || !inEp) throw new Error('Could not find USB endpoints');
@@ -703,6 +702,11 @@ class TNC {
 
     // ── KISS frame reassembly ──
     _feedBytes(chunk) {
+        if (this._readBuf.length > 65536) {
+            if (state.rawMonitor) addTerminalLine('system', 'BUFFER OVERFLOW: discarding ' + this._readBuf.length + ' bytes (no FEND delimiter found)');
+            this._readBuf = new Uint8Array(0);
+            this._prevFend = -1;
+        }
         const combined = new Uint8Array(this._readBuf.length + chunk.length);
         combined.set(this._readBuf, 0);
         combined.set(chunk, this._readBuf.length);

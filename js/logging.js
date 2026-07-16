@@ -20,7 +20,8 @@ function logPacketFromTNC(parsed) {
         var matchKey = parsed.source;
         var matchBase = parsed.sourceBase || parsed.source;
         var pendingIdx = state.pendingQSOs.findIndex(function(p) {
-            return (p.call === matchKey || p.call === matchBase) && p.satId === state.selectedSat;
+            var pBase = p.call.split('-')[0].toUpperCase();
+            return (p.call.toUpperCase() === matchKey.toUpperCase() || pBase === matchBase.toUpperCase()) && p.satId === state.selectedSat;
         });
         if (pendingIdx >= 0 && msgDestIsForUs(parsed.info)) {
             var pending = state.pendingQSOs[pendingIdx];

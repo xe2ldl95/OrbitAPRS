@@ -29,12 +29,13 @@ function processPendingAcks() {
             var heard = state.heardStations.some(function(s) {
                 return s.call === p.target || s.call.split('-')[0] === p.target.split('-')[0];
             });
-            if (heard) {
+            if (heard && (p.heardRetries || 0) < 3) {
+                p.heardRetries = (p.heardRetries || 0) + 1;
                 p.retries = 0;
                 p.interval = 15000;
                 p.nextRetry = now + 15000;
                 remaining.push(p);
-                addTerminalLine('system', 'Message-on-Heard: retrying to ' + p.target + ' (msg #' + p.msgId + ')');
+                addTerminalLine('system', 'Message-on-Heard: retrying to ' + p.target + ' (msg #' + p.msgId + ', heard #' + p.heardRetries + '/3)');
                 continue;
             }
             addTerminalLine('system', 'Message to ' + p.target + ' not acknowledged (msg #' + p.msgId + ')');
@@ -547,17 +548,16 @@ document.querySelector('.header .logo').addEventListener('click', () => {
 });
 
 function tncConnect() {
-    const type = document.getElementById('setTncType').value;
+    const type = state.tncType || 'serial';
     let port = '';
     let host = '';
-    const baud = parseInt(document.getElementById('setTncBaud').value);
+    const baud = parseInt(state.tncBaud) || 57600;
     
     if (type === 'tcp') {
-        host = document.getElementById('setTncHost').value.trim();
-        port = document.getElementById('setTncPort').value.trim();
+        host = state.tncHost || 'localhost';
+        port = parseInt(state.tncPort) || 8001;
         if (!host) { showToast(t('toast.tcp_host_required'), true); return; }
         if (!port) { showToast(t('toast.tcp_port_required'), true); return; }
-        port = parseInt(port);
     }
     
     if (!state.tnc) state.tnc = new TNC();
@@ -764,6 +764,15 @@ function renderHeardList() {
 function tncDisconnect() {
     if (state.tnc) {
         state.tnc.disconnect();
+    }
+}
+
+function toggleTNCConnection() {
+    if (state.tnc && state.tnc.connected) {
+        if (!confirm(t('confirm.disconnect_tnc'))) return;
+        tncDisconnect();
+    } else {
+        tncConnect();
     }
 }
 
@@ -1423,13 +1432,13 @@ function sendBeaconPacket() {
     if (state.beaconShareLocation) {
         var st = state.stationSymbolTable || '/';
         var sy = state.stationSymbolCode || '[';
-        info = formatAPRSPosition(state.myLat, state.myLon, sy, st, state.beaconMessage, state.myAlt);
+        info = formatAPRSPosition(state.myLat, state.myLon, sy, st, state.beaconMessage);
     } else if (state.beaconMessage) {
         info = '>' + sanitizeAPRSText(state.beaconMessage);
     } else {
         return;
     }
-    var beaconDest = state.beaconDestCall || 'GPS';
+    var beaconDest = state.tocallPosTer;
     var fullPacket = formatAPRSFrame(state.myCall, beaconDest, state.digipath, info);
     addTerminalLine('tx', fullPacket);
     if (state.tnc && state.tnc.connected) {

@@ -27,6 +27,9 @@ function buildAX25Frame(packet) {
     let digi = [];
     if (hasDigi) {
         const dlist = packet.digipath.split(',');
+        if (dlist.length > 8) {
+            throw new Error('Too many digipeaters (max 8, got ' + dlist.length + ')');
+        }
         dlist.forEach((d, i) => {
             const dd = d.trim();
             if (dd) digi = digi.concat(Array.from(encodeAX25Address(dd, i === dlist.length - 1 ? 0x01 : 0)));
@@ -90,6 +93,7 @@ function stringToBytes(str) {
 }
 
 function _ax25AddrAt(data, off) {
+    if (off + 6 >= data.length) return { base: '', ssid: 0, full: '', repeated: false };
     let call = '';
     for (let i = off; i < off + 6; i++) {
         const c = String.fromCharCode(data[i] >> 1);
@@ -124,10 +128,12 @@ function parseAX25Frame(bytes) {
         digiPath.push(d.full);
         digiRepeated.push(d.repeated);
     }
+    // Strip trailing non-printable bytes (FCS garbage from H-bit flip without CRC recalc)
     let infoField = '';
     for (let i = addrEnd + 2; i < data.length; i++) {
         infoField += String.fromCharCode(data[i]);
     }
+    infoField = infoField.replace(/[\x00-\x08\x0E-\x1F\x7F-\xFF]+$/, '');
     return {
         source: src.full,
         sourceBase: src.base,
@@ -200,6 +206,12 @@ function decodeMicE(dest, info) {
     if (dstBase.length < 6) return result;
     const body = info.slice(1);
     if (body.length < 8) return result;
+
+    // Validate Mic-E destination chars are in valid range (0x30-0x7F)
+    for (let i = 0; i < 6; i++) {
+        const c = dstBase.charCodeAt(i);
+        if (c < 0x30 || c > 0x7F) return result;
+    }
 
     let latDigits = '';
     for (let i = 0; i < dstBase.length; i++) {
