@@ -199,6 +199,9 @@ function init() {
             });
         }
     } catch (_) {}
+
+    // Keyboard shortcuts for text inputs
+    initKeyboardHandlers();
 }
 
 function toggleBluetoothFields() {
