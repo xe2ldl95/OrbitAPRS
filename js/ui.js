@@ -26,18 +26,6 @@ function processPendingAcks() {
         var p = _pendingAcks[i];
         if (now < p.nextRetry) { remaining.push(p); continue; }
         if (p.retries >= maxRetries) {
-            var heard = state.heardStations.some(function(s) {
-                return s.call === p.target || s.call.split('-')[0] === p.target.split('-')[0];
-            });
-            if (heard && (p.heardRetries || 0) < 3) {
-                p.heardRetries = (p.heardRetries || 0) + 1;
-                p.retries = 0;
-                p.interval = 15000;
-                p.nextRetry = now + 15000;
-                remaining.push(p);
-                addTerminalLine('system', 'Message-on-Heard: retrying to ' + p.target + ' (msg #' + p.msgId + ', heard #' + p.heardRetries + '/3)');
-                continue;
-            }
             addTerminalLine('system', 'Message to ' + p.target + ' not acknowledged (msg #' + p.msgId + ')');
             continue;
         }
@@ -70,7 +58,7 @@ function processPendingAcks() {
 function confirmAck(target, msgId) {
     var idx = -1;
     for (var i = 0; i < _pendingAcks.length; i++) {
-        if (_pendingAcks[i].target === target && _pendingAcks[i].msgId === msgId) {
+        if (_pendingAcks[i].target.split('-')[0] === target.split('-')[0] && _pendingAcks[i].msgId === msgId) {
             idx = i; break;
         }
     }
@@ -282,13 +270,13 @@ function sendQuickAction(action) {
             const msg = msgIdMatch ? body.slice(0, body.lastIndexOf('{')) : body;
             const destBase = dest.split('-')[0].toUpperCase();
             ackEnabled = state.chatAck[destBase] === true;
-            info = formatAPRSMessage(dest, msg, ackEnabled ? (msgId || String(state.msgIdCounter).padStart(4, '0')) : undefined);
+            info = formatAPRSMessage(dest, msg, ackEnabled ? (msgId || String(state.msgIdCounter).padStart(2, '0')) : undefined);
         }
         if (ackEnabled && !/\{[a-zA-Z0-9]{1,4}$/.test(info)) {
-            const seq = String(state.msgIdCounter).padStart(4, '0');
+            const seq = String(state.msgIdCounter).padStart(2, '0');
             info += '{' + seq;
         }
-        state.msgIdCounter = (state.msgIdCounter % 9999) + 1;
+        state.msgIdCounter = (state.msgIdCounter % 99) + 1;
         persistSettings();
     }
     const sourceCall = state.myCall;
@@ -651,6 +639,35 @@ function tncConnect() {
                 if (msgBody && msgDestIsForUs(tp.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}$/i.test(msgBody)) {
                     addChatMessage(tp.source, msgBody, 'received');
                 }
+                // ACK: auto-respond to third-party messages with {xx} directed to us
+                if (msgDestIsForUs(tp.info)) {
+                    var tpMsgId = extractMsgId(tp.info);
+                    var tpAckKey = tp.src + ':' + tpMsgId;
+                    var tpLastAck = _recentAcked[tpAckKey] || 0;
+                    if (tpMsgId && Date.now() - tpLastAck > 10000) {
+                        _recentAcked[tpAckKey] = Date.now();
+                        var tpAckInfo = ':' + tp.src.padEnd(9, ' ') + ':ack' + tpMsgId;
+                        var tpAckFull = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, tpAckInfo);
+                        if (state.tnc && state.tnc.connected) {
+                            try {
+                                var tpAckPacket = buildAX25Frame({
+                                    infoField: tpAckInfo, sourceCall: state.myCall,
+                                    destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: tpAckFull,
+                                });
+                                state.tnc.send(tpAckPacket);
+                                addTerminalLine('tx', tpAckFull);
+                            } catch (e) {}
+                        }
+                        // Prune stale entries (>1h old)
+                        var tpKeys = Object.keys(_recentAcked);
+                        if (tpKeys.length > 200) {
+                            var tpCutoff = Date.now() - 3600000;
+                            for (var tki = 0; tki < tpKeys.length; tki++) {
+                                if (_recentAcked[tpKeys[tki]] < tpCutoff) delete _recentAcked[tpKeys[tki]];
+                            }
+                        }
+                    }
+                }
             }
         }
     };
@@ -1001,8 +1018,8 @@ function sendFreeTextPacket() {
     if (!raw) { showToast(t('toast.enter_message'), true); return; }
     if (state.myCall === 'N0CALL') { showToast(t('toast.set_callsign'), true); return; }
 
-    const seq = String(state.msgIdCounter).padStart(4, '0');
-    state.msgIdCounter = (state.msgIdCounter % 9999) + 1;
+    const seq = String(state.msgIdCounter).padStart(2, '0');
+    state.msgIdCounter = (state.msgIdCounter % 99) + 1;
     persistSettings();
 
     const call = target.split(' ')[0];
