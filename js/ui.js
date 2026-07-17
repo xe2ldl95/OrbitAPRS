@@ -27,18 +27,6 @@ function processPendingAcks() {
         var p = _pendingAcks[i];
         if (now < p.nextRetry) { remaining.push(p); continue; }
         if (p.retries >= maxRetries) {
-            var heard = state.heardStations.some(function(s) {
-                return s.call === p.target || s.call.split('-')[0] === p.target.split('-')[0];
-            });
-            if (heard && (p.heardRetries || 0) < 3) {
-                p.heardRetries = (p.heardRetries || 0) + 1;
-                p.retries = 0;
-                p.interval = 15000;
-                p.nextRetry = now + 15000;
-                remaining.push(p);
-                addTerminalLine('system', 'Message-on-Heard: retrying to ' + p.target + ' (msg #' + p.msgId + ', heard #' + p.heardRetries + '/3)');
-                continue;
-            }
             addTerminalLine('system', 'Message to ' + p.target + ' not acknowledged (msg #' + p.msgId + ')');
             continue;
         }
