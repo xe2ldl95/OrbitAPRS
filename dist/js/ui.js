@@ -150,9 +150,12 @@ function resolveMacroTemplate(macro, target) {
 function renderQuickActions() {
     const container = document.getElementById('quickActions');
     if (!container) return;
-    container.innerHTML = state.macros.map(m =>
-        '<button class="btn-quick" onclick="sendQuickAction(\'' + m.id + '\')" title="' + escapeHTML(m.template || '') + '">' + (m.icon || '🔘') + ' ' + escapeHTML(m.name || '?') + '</button>'
-    ).join('');
+    const enabled = state.terrestrialMacrosEnabled !== false;
+    container.innerHTML = state.macros.map(m => {
+        const isPos = m.template && m.template.charAt(0) === '=';
+        const disabled = !enabled && !isPos;
+        return '<button class="btn-quick' + (disabled ? ' disabled' : '') + '" onclick="sendQuickAction(\'' + m.id + '\')" title="' + escapeHTML(m.template || '') + '"' + (disabled ? ' disabled' : '') + '>' + (m.icon || '🔘') + ' ' + escapeHTML(m.name || '?') + '</button>';
+    }).join('');
 }
 
 function renderMacroEditor() {
