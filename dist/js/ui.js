@@ -1,10 +1,11 @@
 var _pendingAcks = [];
 var _ackTimer = null;
 var _recentAcked = {};
+var _pktDedup = new Map();
 
 function extractMsgId(info) {
     if (!info) return null;
-    var m = info.match(/\{([a-zA-Z0-9]{1,4})\}?\s*$/);
+    var m = info.match(/\{([a-zA-Z0-9]{1,4})\}?/);
     return m ? m[1] : null;
 }
 
@@ -29,12 +30,13 @@ function processPendingAcks() {
             var heard = state.heardStations.some(function(s) {
                 return s.call === p.target || s.call.split('-')[0] === p.target.split('-')[0];
             });
-            if (heard) {
+            if (heard && (p.heardRetries || 0) < 3) {
+                p.heardRetries = (p.heardRetries || 0) + 1;
                 p.retries = 0;
                 p.interval = 15000;
                 p.nextRetry = now + 15000;
                 remaining.push(p);
-                addTerminalLine('system', 'Message-on-Heard: retrying to ' + p.target + ' (msg #' + p.msgId + ')');
+                addTerminalLine('system', 'Message-on-Heard: retrying to ' + p.target + ' (msg #' + p.msgId + ', heard #' + p.heardRetries + '/3)');
                 continue;
             }
             addTerminalLine('system', 'Message to ' + p.target + ' not acknowledged (msg #' + p.msgId + ')');
@@ -69,7 +71,7 @@ function processPendingAcks() {
 function confirmAck(target, msgId) {
     var idx = -1;
     for (var i = 0; i < _pendingAcks.length; i++) {
-        if (_pendingAcks[i].target === target && _pendingAcks[i].msgId === msgId) {
+        if (_pendingAcks[i].target.split('-')[0] === target.split('-')[0] && _pendingAcks[i].msgId === msgId) {
             idx = i; break;
         }
     }
@@ -92,6 +94,31 @@ function confirmAck(target, msgId) {
             }
         }
     }
+}
+
+function abortPendingAcks() {
+    var count = _pendingAcks.length;
+    if (count === 0) return;
+    // Mark all pending chat messages as 'aborted'
+    for (var i = 0; i < _pendingAcks.length; i++) {
+        var p = _pendingAcks[i];
+        var key = p.target.split('-')[0].toUpperCase();
+        var msgs = _chatMessages[key];
+        if (msgs) {
+            for (var mi = msgs.length - 1; mi >= 0; mi--) {
+                if (msgs[mi].msgId === p.msgId && msgs[mi].status === 'pending') {
+                    msgs[mi].status = 'aborted';
+                    break;
+                }
+            }
+        }
+    }
+    _pendingAcks = [];
+    stopAckTimer();
+    saveChatMessages();
+    addTerminalLine('system', 'ACK retries ABORTED (' + count + ' pending message(s) cancelled)');
+    showToast(t('toast.ack_aborted'));
+    if (state.chatActive) renderChatMessages(state.chatActive);
 }
 
 function sendRejResponse(sourceCall, msgId) {
@@ -149,9 +176,12 @@ function resolveMacroTemplate(macro, target) {
 function renderQuickActions() {
     const container = document.getElementById('quickActions');
     if (!container) return;
-    container.innerHTML = state.macros.map(m =>
-        '<button class="btn-quick" onclick="sendQuickAction(\'' + m.id + '\')" title="' + escapeHTML(m.template || '') + '">' + (m.icon || '🔘') + ' ' + escapeHTML(m.name || '?') + '</button>'
-    ).join('');
+    const macrosEnabled = isSatMode() || state.terrestrialMacrosEnabled !== false;
+    container.innerHTML = state.macros.map(m => {
+        const isPos = m.template && m.template.charAt(0) === '=';
+        const disabled = !macrosEnabled && !isPos;
+        return '<button class="btn-quick' + (disabled ? ' disabled' : '') + '" onclick="sendQuickAction(\'' + m.id + '\')" title="' + escapeHTML(m.template || '') + '"' + (disabled ? ' disabled' : '') + '>' + (m.icon || '🔘') + ' ' + escapeHTML(m.name || '?') + '</button>';
+    }).join('');
 }
 
 function renderMacroEditor() {
@@ -278,13 +308,13 @@ function sendQuickAction(action) {
             const msg = msgIdMatch ? body.slice(0, body.lastIndexOf('{')) : body;
             const destBase = dest.split('-')[0].toUpperCase();
             ackEnabled = state.chatAck[destBase] === true;
-            info = formatAPRSMessage(dest, msg, ackEnabled ? (msgId || String(state.msgIdCounter).padStart(4, '0')) : undefined);
+            info = formatAPRSMessage(dest, msg, ackEnabled ? (msgId || String(state.msgIdCounter).padStart(2, '0')) : undefined);
         }
         if (ackEnabled && !/\{[a-zA-Z0-9]{1,4}$/.test(info)) {
-            const seq = String(state.msgIdCounter).padStart(4, '0');
+            const seq = String(state.msgIdCounter).padStart(2, '0');
             info += '{' + seq;
         }
-        state.msgIdCounter = (state.msgIdCounter % 9999) + 1;
+        state.msgIdCounter = (state.msgIdCounter % 99) + 1;
         persistSettings();
     }
     const sourceCall = state.myCall;
@@ -328,7 +358,7 @@ function sendQuickAction(action) {
                 }
             }
             var msgId = extractMsgId(info);
-            var enqTarget = target.split(' ')[0];
+            var enqTarget = target.split(' ')[0].split('-')[0];
             if (info[0] === ':' && msgId && state.msgRetries > 0) {
                 _pendingAcks.push({ target: enqTarget, msgId: msgId, info: info, retries: 0, lastSent: Date.now(), interval: 15000, nextRetry: Date.now() + 15000 });
                 if (_pendingAcks.length > 50) _pendingAcks.shift();
@@ -373,6 +403,63 @@ function escapeHTML(str) {
     div.textContent = str;
     return div.innerHTML;
 }
+
+function splitThirdPartyPackets(info) {
+    const results = [];
+    const parts = info.split('}');
+    for (let i = 1; i < parts.length; i++) {
+        const raw = parts[i];
+        const gt = raw.indexOf('>');
+        if (gt < 0) continue;
+        const src = raw.slice(0, gt);
+        if (src.length < 1 || src.length > 9) continue;
+        const afterGt = raw.slice(gt + 1);
+        const colon = afterGt.indexOf(':');
+        if (colon < 0) continue;
+        const destPath = afterGt.slice(0, colon);
+        const dest = destPath.split(',')[0];
+        if (dest.length < 1 || dest.length > 9) continue;
+        let innerInfo = afterGt.slice(colon + 1);
+        innerInfo = innerInfo.replace(/[\x00-\x1F\x7F-\xFF]+$/, '');
+        results.push({ src, dest, info: innerInfo });
+    }
+    return results;
+}
+
+function _updateHeardFromPkt(pkt) {
+    const aprsFromPkt = extractAPRSData(pkt.info, pkt.dest);
+    const existing = state.heardStations.find(s => s.call === pkt.source);
+    if (existing) {
+        existing.lastHeard = Date.now();
+        existing.count++;
+        if (aprsFromPkt.grid) existing.grid = aprsFromPkt.grid;
+        if (aprsFromPkt.lat !== null && aprsFromPkt.lat !== undefined) existing.lat = aprsFromPkt.lat;
+        if (aprsFromPkt.lon !== null && aprsFromPkt.lon !== undefined) existing.lon = aprsFromPkt.lon;
+        if (aprsFromPkt.symbol) existing.symbol = aprsFromPkt.symbol;
+        if (aprsFromPkt.symbolTable) existing.symbolTable = aprsFromPkt.symbolTable;
+    } else {
+        state.heardStations.unshift({
+            call: pkt.source,
+            lastHeard: Date.now(),
+            count: 1,
+            grid: aprsFromPkt.grid || null,
+            lat: aprsFromPkt.lat ?? null,
+            lon: aprsFromPkt.lon ?? null,
+            symbol: aprsFromPkt.symbol || null,
+            symbolTable: aprsFromPkt.symbolTable || null,
+        });
+        if (state.heardStations.length > state.heardStationsLimit) state.heardStations.pop();
+    }
+    requestHeardRender();
+}
+
+// Periodically clean old dedup cache entries
+setInterval(function() {
+    var now = Date.now();
+    for (var key of _pktDedup.keys()) {
+        if (now - _pktDedup.get(key) > 5000) _pktDedup.delete(key);
+    }
+}, 30000);
 
 function clearTerminal() {
     document.getElementById('terminal').innerHTML =
@@ -546,7 +633,7 @@ document.querySelector('.header .logo').addEventListener('click', () => {
     requestCompassPermission();
 });
 
-function tncConnect() {
+async function tncConnect() {
     const type = state.tncType || 'serial';
     let port = '';
     let host = '';
@@ -560,42 +647,80 @@ function tncConnect() {
     }
     
     if (!state.tnc) state.tnc = new TNC();
+    if (state.tnc.connected) await state.tnc.disconnect();
     state.tnc.onPacket = (pkt) => {
+        // ── Third-party packet expansion ──
+        if (pkt.info && pkt.info[0] === '}') {
+            var innerPkts = splitThirdPartyPackets(pkt.info);
+            for (var tpi = 0; tpi < innerPkts.length; tpi++) {
+                var tp = innerPkts[tpi];
+                var tpKey = tp.src + '|' + tp.dest + '|' + tp.info;
+                var tpNow = Date.now();
+                if (_pktDedup.has(tpKey) && tpNow - _pktDedup.get(tpKey) < 500) continue;
+                _pktDedup.set(tpKey, tpNow);
+                addTerminalLine('rx', tp.src + ' > ' + tp.dest + ' : ' + tp.info + ' [via ' + pkt.source + ']');
+                document.getElementById('tncStatusDot').className = 'status-dot active';
+                logPacketFromTNC({ source: tp.src, sourceBase: tp.src.split('-')[0], dest: tp.dest, info: tp.info });
+                _updateHeardFromPkt({ source: tp.src, dest: tp.dest, info: tp.info });
+                // CHAT: store received messages directed to us (terrestrial only)
+                if (tp.info[0] === ':' && !isSatMode()) {
+                    var tpBody = extractMessageBody(tp.info);
+                    if (tpBody && msgDestIsForUs(tp.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}/i.test(tpBody)) {
+                        addChatMessage(tp.src, tpBody, 'received');
+                    }
+                }
+                // ACK: auto-respond to third-party messages with {xx} directed to us
+                if (tp.info[0] === ':' && msgDestIsForUs(tp.info)) {
+                    var tpMsgId = extractMsgId(tp.info);
+                    var tpAckKey = tp.src + ':' + tpMsgId;
+                    var tpLastAck = _recentAcked[tpAckKey] || 0;
+                    if (tpMsgId && Date.now() - tpLastAck > 10000) {
+                        _recentAcked[tpAckKey] = Date.now();
+                        var tpAckInfo = ':' + tp.src.padEnd(9, ' ') + ':ack' + tpMsgId;
+                        var tpAckFull = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, tpAckInfo);
+                        if (state.tnc && state.tnc.connected) {
+                            try {
+                                var tpAckPacket = buildAX25Frame({
+                                    infoField: tpAckInfo, sourceCall: state.myCall,
+                                    destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: tpAckFull,
+                                });
+                                state.tnc.send(tpAckPacket);
+                                addTerminalLine('tx', tpAckFull);
+                            } catch (e) {
+                                addTerminalLine('system', 'ACK TX error: ' + e.message);
+                            }
+                        }
+                        // Prune stale _recentAcked entries (>1h old)
+                        var tpKeys = Object.keys(_recentAcked);
+                        if (tpKeys.length > 200) {
+                            var tpCutoff = Date.now() - 3600000;
+                            for (var tki = 0; tki < tpKeys.length; tki++) {
+                                if (_recentAcked[tpKeys[tki]] < tpCutoff) delete _recentAcked[tpKeys[tki]];
+                            }
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
+        // ── Deduplication (500ms window) ──
+        var pktKey = pkt.source + '|' + pkt.dest + '|' + pkt.info;
+        var now = Date.now();
+        if (_pktDedup.has(pktKey) && now - _pktDedup.get(pktKey) < 500) return;
+        _pktDedup.set(pktKey, now);
+
         const isOwn = pkt.source.toUpperCase() === state.myCall.toUpperCase();
         const isRpt = isOwn && pkt.digiRepeated && pkt.digiRepeated.some(r => r);
         const lineType = isOwn ? (isRpt ? 'rx-rpt' : 'rx-echo') : 'rx';
-        const label = isOwn ? (isRpt ? 'RPT ' : 'ECHO ') : '';
         addTerminalLine(lineType, pkt.source + ' > ' + pkt.dest + ' : ' + pkt.info);
         document.getElementById('tncStatusDot').className = 'status-dot active';
         logPacketFromTNC(pkt);
-        const aprsFromPkt = extractAPRSData(pkt.info, pkt.dest);
-        const existing = state.heardStations.find(s => s.call === pkt.source);
-        if (existing) {
-            existing.lastHeard = Date.now();
-            existing.count++;
-            if (aprsFromPkt.grid) existing.grid = aprsFromPkt.grid;
-            if (aprsFromPkt.lat !== null && aprsFromPkt.lat !== undefined) existing.lat = aprsFromPkt.lat;
-            if (aprsFromPkt.lon !== null && aprsFromPkt.lon !== undefined) existing.lon = aprsFromPkt.lon;
-            if (aprsFromPkt.symbol) existing.symbol = aprsFromPkt.symbol;
-            if (aprsFromPkt.symbolTable) existing.symbolTable = aprsFromPkt.symbolTable;
-        } else {
-            state.heardStations.unshift({
-                call: pkt.source,
-                lastHeard: Date.now(),
-                count: 1,
-                grid: aprsFromPkt.grid || null,
-                lat: aprsFromPkt.lat ?? null,
-                lon: aprsFromPkt.lon ?? null,
-                symbol: aprsFromPkt.symbol || null,
-                symbolTable: aprsFromPkt.symbolTable || null,
-            });
-            if (state.heardStations.length > state.heardStationsLimit) state.heardStations.pop();
-        }
-        requestHeardRender();
+        _updateHeardFromPkt(pkt);
         // Chat: store received messages directed to us (terrestrial only)
         if (pkt.info && pkt.info[0] === ':' && !isSatMode()) {
             var msgBody = extractMessageBody(pkt.info);
-            if (msgBody && msgDestIsForUs(pkt.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}$/i.test(msgBody)) {
+            if (msgBody && msgDestIsForUs(pkt.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}/i.test(msgBody)) {
                 addChatMessage(pkt.source, msgBody, 'received');
             }
         }
@@ -616,7 +741,9 @@ function tncConnect() {
                         });
                         state.tnc.send(ackPacket);
                         addTerminalLine('tx', ackFull);
-                    } catch (e) {}
+                    } catch (e) {
+                        addTerminalLine('system', 'ACK TX error: ' + e.message);
+                    }
                 }
                 // Prune stale entries (>1h old)
                 var keys = Object.keys(_recentAcked);
@@ -633,7 +760,7 @@ function tncConnect() {
             var secondColon = pkt.info.indexOf(':', 1);
             if (secondColon > 0) {
                 var body = pkt.info.slice(secondColon + 1);
-                var ackMatch = body.match(/^(ack|rej)([a-zA-Z0-9]{1,4})$/i);
+                var ackMatch = body.match(/^(ack|rej)([a-zA-Z0-9]{1,4})/i);
                 if (ackMatch && msgDestIsForUs(pkt.info)) {
                     confirmAck(pkt.source, ackMatch[2]);
                 }
@@ -644,7 +771,7 @@ function tncConnect() {
             var tp = parseThirdPartyPacket(pkt.info);
             if (tp && tp.info[0] === ':') {
                 var msgBody = extractMessageBody(tp.info);
-                if (msgBody && msgDestIsForUs(tp.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}$/i.test(msgBody)) {
+                if (msgBody && msgDestIsForUs(tp.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}/i.test(msgBody)) {
                     addChatMessage(tp.source, msgBody, 'received');
                 }
             }
@@ -716,9 +843,9 @@ function tncConnect() {
     };
     
     if (type === 'tcp') {
-        state.tnc.connect(type, host, port);
+        await state.tnc.connect(type, host, port);
     } else {
-        state.tnc.connect(type, port, baud);
+        await state.tnc.connect(type, port, baud);
     }
 }
 
@@ -997,8 +1124,8 @@ function sendFreeTextPacket() {
     if (!raw) { showToast(t('toast.enter_message'), true); return; }
     if (state.myCall === 'N0CALL') { showToast(t('toast.set_callsign'), true); return; }
 
-    const seq = String(state.msgIdCounter).padStart(4, '0');
-    state.msgIdCounter = (state.msgIdCounter % 9999) + 1;
+    const seq = String(state.msgIdCounter).padStart(2, '0');
+    state.msgIdCounter = (state.msgIdCounter % 99) + 1;
     persistSettings();
 
     const call = target.split(' ')[0];
@@ -1352,23 +1479,39 @@ function renderChatList() {
 }
 
 function renderChatMessages(call) {
+    var headerEl = document.getElementById('chatHeader');
     var el = document.getElementById('chatMessages');
-    if (!el) return;
+    if (!headerEl || !el) return;
     var ackOn = state.chatAck[call] === true;
-    var headerHtml = '<div class="chat-header">' +
-        '<span class="chat-header-call">' + call + '</span>' +
+
+    // Check if there are pending messages for this conversation
+    var hasPending = false;
+    var msgs = _chatMessages[call];
+    if (msgs) {
+        for (var i = 0; i < msgs.length; i++) {
+            if (msgs[i].status === 'pending') { hasPending = true; break; }
+        }
+    }
+
+    var headerHtml = '<span class="chat-header-call">' + call + '</span>' +
         '<button class="chat-ack-toggle' + (ackOn ? ' on' : '') + '" onclick="toggleChatAck(\'' + call + '\')">' +
         (ackOn ? t('chat.ack_on') : t('chat.ack_off')) +
-        '</button></div>';
-    var msgs = _chatMessages[call];
+        '</button>';
+    if (hasPending) {
+        headerHtml += '<button class="chat-abort-btn" onclick="abortPendingAcks()">' +
+            (typeof t === 'function' ? t('chat.abort') : 'Abort') + '</button>';
+    }
+    headerEl.innerHTML = headerHtml;
+
     if (!msgs || !msgs.length) {
-        el.innerHTML = headerHtml + '<div class="chat-empty">' + t('chat.no_messages') + '</div>';
+        el.innerHTML = '<div class="chat-empty">' + t('chat.no_messages') + '</div>';
         return;
     }
-    el.innerHTML = headerHtml + msgs.map(function(m) {
+    el.innerHTML = msgs.map(function(m) {
         var cls = m.type === 'sent' ? 'sent' : 'received';
         if (m.status === 'pending') cls += ' pending';
         else if (m.status === 'confirmed') cls += ' confirmed';
+        else if (m.status === 'aborted') cls += ' aborted';
         return '<div class="chat-bubble ' + cls + '">' +
             escapeHTML(m.text) +
             '<div class="chat-bubble-time">' + m.time + '</div>' +

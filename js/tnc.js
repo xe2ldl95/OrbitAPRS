@@ -194,26 +194,6 @@ function kissEncode(data) {
     return new Uint8Array(r);
 }
 
-function kissDecode(frame) {
-    if (frame.length < 4) return null;
-    if (frame[0] !== KISS_FEND || frame[frame.length - 1] !== KISS_FEND) return null;
-    const body = frame.slice(1, -1);
-    if (body.length < 1) return null;
-    const cmd = (body[0] >> 4) & 0x0F;
-    if (cmd !== 0) return null;
-    const r = [];
-    for (let i = 1; i < body.length; i++) {
-        if (body[i] === KISS_FESC) {
-            i++;
-            if (i >= body.length) return null;
-            r.push(body[i] === KISS_TFEND ? KISS_FEND : KISS_FESC);
-        } else {
-            r.push(body[i]);
-        }
-    }
-    return new Uint8Array(r);
-}
-
 function kissCommandEncode(command, payload) {
     const r = [KISS_FEND, command];
     for (let i = 0; i < payload.length; i++) {
@@ -273,6 +253,7 @@ class TNC {
 
     async connect(type, port, baud) {
         try {
+            if (this.connected) await this.disconnect();
             const isCapacitor = _isCapacitorNative();
             if (isCapacitor) {
                 // Android: map new type names to Capacitor transports
@@ -445,13 +426,17 @@ class TNC {
         // Register read callback - receives Base64 encoded data
         await Serial.registerReadRawCallback((result) => {
             if (result && result.data && this.connected) {
-                const base64 = result.data;
-                const binary = atob(base64);
-                const bytes = new Uint8Array(binary.length);
-                for (let i = 0; i < binary.length; i++) {
-                    bytes[i] = binary.charCodeAt(i);
+                try {
+                    const base64 = result.data;
+                    const binary = atob(base64);
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) {
+                        bytes[i] = binary.charCodeAt(i);
+                    }
+                    this._feedBytes(bytes);
+                } catch (e) {
+                    // Silently ignore malformed serial data
                 }
-                this._feedBytes(bytes);
             }
         });
 
@@ -499,13 +484,14 @@ class TNC {
             delimiter: '\xC0'
         });
 
-        // Listen for data
+        // Listen for data (remove old listeners first)
+        BluetoothSerial.removeAllListeners();
         BluetoothSerial.addListener('onRead', (data) => {
             if (data && data.value) {
                 const str = data.value;
                 const bytes = new Uint8Array(str.length);
                 for (let i = 0; i < str.length; i++) {
-                    bytes[i] = str.charCodeAt(i);
+                    bytes[i] = str.charCodeAt(i) & 0xFF;
                 }
                 this._feedBytes(bytes);
             }
@@ -604,9 +590,13 @@ class TNC {
         this.transport = { device, server, service, writeChar, notifyChar, _type: 'bluetooth' };
         this._writer = { write: async (data) => { await writeChar.writeValue(data); } };
 
-        notifyChar.addEventListener('characteristicvaluechanged', (ev) => {
+        if (this._btNotifyHandler) {
+            notifyChar.removeEventListener('characteristicvaluechanged', this._btNotifyHandler);
+        }
+        this._btNotifyHandler = (ev) => {
             this._feedBytes(new Uint8Array(ev.target.value.buffer));
-        });
+        };
+        notifyChar.addEventListener('characteristicvaluechanged', this._btNotifyHandler);
         await notifyChar.startNotifications();
     }
 
@@ -629,6 +619,10 @@ class TNC {
 
         await BluetoothLe.connect({ deviceId: this._capBLEDeviceId });
 
+        if (this._capBLENotificationListener) {
+            this._capBLENotificationListener.remove();
+            this._capBLENotificationListener = null;
+        }
         this._capBLENotificationListener = await BluetoothLe.addListener(
             `notification|${this._capBLEDeviceId}|${NUS_SERVICE}|${NUS_TX_CHAR}`,
             (event) => {
@@ -698,13 +692,12 @@ class TNC {
         // Find endpoints - prefer bulk IN for data, fall back to interrupt for status
         const iface = device.configuration.interfaces[0];
         const alt = iface.alternates[0] || iface;
-        let outEp, inEp, inEpInt;
+        let outEp, inEp;
         const epInfo = [];
         for (const ep of alt.endpoints) {
             epInfo.push('EP0x' + ep.endpointNumber.toString(16) + ' ' + ep.type + ' ' + ep.direction + ' pkt=' + ep.packetSize);
             if (ep.type === 'bulk' && ep.direction === 'out') outEp = ep.endpointNumber;
             if (ep.type === 'bulk' && ep.direction === 'in') inEp = ep.endpointNumber;
-            if (ep.type === 'interrupt' && ep.direction === 'in') inEpInt = ep.endpointNumber;
         }
         addTerminalLine('system', 'USB endpoints: ' + epInfo.join(', '));
         if (!outEp || !inEp) throw new Error('Could not find USB endpoints');
@@ -841,6 +834,10 @@ class TNC {
                 if (this._btDisconnectHandler) {
                     this.transport.device.removeEventListener('gattserverdisconnected', this._btDisconnectHandler);
                 }
+                if (this._btNotifyHandler && this.transport.notifyChar) {
+                    this.transport.notifyChar.removeEventListener('characteristicvaluechanged', this._btNotifyHandler);
+                    this._btNotifyHandler = null;
+                }
                 this.transport.server.disconnect();
             } catch (_) {}
         } else if (this.transport && this.transport._type === 'tcp') {
@@ -932,6 +929,11 @@ class TNC {
 
     // ── KISS frame reassembly ──
     _feedBytes(chunk) {
+        if (this._readBuf.length > 65536) {
+            if (state.rawMonitor) addTerminalLine('system', 'BUFFER OVERFLOW: discarding ' + this._readBuf.length + ' bytes (no FEND delimiter found)');
+            this._readBuf = new Uint8Array(0);
+            this._prevFend = -1;
+        }
         const combined = new Uint8Array(this._readBuf.length + chunk.length);
         combined.set(this._readBuf, 0);
         combined.set(chunk, this._readBuf.length);
@@ -990,12 +992,10 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
-let _btPickerResolve = null;
 let _btPickerReject = null;
 
 function _showBtDevicePicker(devices) {
     return new Promise((resolve, reject) => {
-        _btPickerResolve = resolve;
         _btPickerReject = reject;
 
         const list = document.getElementById('btDeviceList');
@@ -1020,11 +1020,8 @@ function _showBtDevicePicker(devices) {
             btn.addEventListener('click', () => {
                 const idx = parseInt(btn.dataset.index, 10);
                 const device = devices[idx];
-                _closeBtPicker();
-                if (_btPickerResolve) {
-                    _btPickerResolve(device);
-                    _btPickerResolve = null;
-                }
+                toggleModal('btDeviceModal', false);
+                resolve(device);
             });
         });
 
@@ -1033,24 +1030,17 @@ function _showBtDevicePicker(devices) {
 }
 
 function cancelBtDevicePicker() {
-    _closeBtPicker();
+    toggleModal('btDeviceModal', false);
     if (_btPickerReject) {
         _btPickerReject(new Error('Bluetooth device selection cancelled'));
         _btPickerReject = null;
     }
 }
 
-function _closeBtPicker() {
-    _btPickerResolve = null;
-    _btPickerReject = null;
-    toggleModal('btDeviceModal', false);
-}
-
 if (typeof globalThis !== 'undefined') {
     globalThis.TCPTransport = TCPTransport;
     globalThis.TNC = TNC;
     globalThis.kissEncode = kissEncode;
-    globalThis.kissDecode = kissDecode;
     globalThis.kissCommandEncode = kissCommandEncode;
     globalThis.kissDecodeRaw = kissDecodeRaw;
     globalThis.cancelBtDevicePicker = cancelBtDevicePicker;

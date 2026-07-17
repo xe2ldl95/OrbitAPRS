@@ -195,6 +195,7 @@ LANG.es = {
     'label.beacon': 'Baliza',
     'label.beacon_symbol': 'Símbolo APRS',
     'label.msg_retries': 'Reintentos de mensaje (0-10)',
+    'label.terrestrial_macros': 'Macros tierra',
     'toast.tnc_detected': '¡TNC USB detectado! Haz clic en Conectar.',
     'toast.tnc_disconnected': '¡TNC USB desconectado!',
     'toast.set_callsign': 'Configura tu indicativo primero',
@@ -204,6 +205,7 @@ LANG.es = {
     'toast.enter_message': 'Introduce un mensaje',
     'toast.qso_confirmed': 'QSO confirmado: ',
     'toast.msg_acknowledged': 'Mensaje confirmado por ',
+    'toast.ack_aborted': 'Reintentos ACK cancelados',
     'toast.tnc_not_connected': 'TNC no conectado',
     'toast.tnc_packet_logged': 'TNC no conectado. Paquete solo registrado.',
     'toast.tx_error': 'Error TX:',
@@ -287,6 +289,7 @@ LANG.es = {
     'chat.ack_on': 'ACK: ON',
     'chat.ack_off': 'ACK: OFF',
     'chat.ack_confirm': '¿Activar ACK para esta conversación? Todos los mensajes enviados a esta estación solicitarán confirmación.',
+    'chat.abort': 'Abortar',
 };
 
 LANG.en = {
@@ -484,6 +487,7 @@ LANG.en = {
     'label.beacon': 'Beacon',
     'label.beacon_symbol': 'APRS Symbol',
     'label.msg_retries': 'Message retries (0-10)',
+    'label.terrestrial_macros': 'Land macros',
     'toast.tnc_detected': 'USB TNC detected! Click Connect.',
     'toast.tnc_disconnected': 'USB TNC disconnected!',
     'toast.set_callsign': 'Set your callsign first',
@@ -493,6 +497,7 @@ LANG.en = {
     'toast.enter_message': 'Enter a message',
     'toast.qso_confirmed': 'QSO confirmed: ',
     'toast.msg_acknowledged': 'Message acknowledged by ',
+    'toast.ack_aborted': 'ACK retries aborted',
     'toast.tnc_not_connected': 'TNC not connected',
     'toast.tnc_packet_logged': 'TNC not connected. Packet logged only.',
     'toast.tx_error': 'TX error:',
@@ -576,6 +581,7 @@ LANG.en = {
     'chat.ack_on': 'ACK: ON',
     'chat.ack_off': 'ACK: OFF',
     'chat.ack_confirm': 'Enable ACK for this chat? All messages sent to this station will request confirmation.',
+    'chat.abort': 'Abort',
 };
 
 function t(key) {

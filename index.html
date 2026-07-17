@@ -255,9 +255,9 @@
                         <option value="en" data-i18n="settings.lang_en">English</option>
                     </select>
                 </div>
-                <div class="form-group" style="display:flex;align-items:center;gap:12px;border-top:1px solid var(--border);padding-top:12px;">
-                    <label style="margin:0;flex:1;" data-i18n="label.terrestrial_macros">Macros modo terrestre habilitados</label>
-                    <input type="checkbox" id="setTerrestrialMacros" checked onchange="state.terrestrialMacrosEnabled=this.checked;renderQuickActions();persistSettings();">
+                <div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;align-items:center;border-top:1px solid var(--border);padding-top:12px;">
+                    <label style="margin:0;font-size:0.8em;color:#888;text-transform:uppercase;letter-spacing:0.5px;" data-i18n="label.terrestrial_macros">Macros tierra</label>
+                    <input type="checkbox" id="setTerrestrialMacros" checked onchange="state.terrestrialMacrosEnabled=this.checked;renderQuickActions();persistSettings();" style="width:16px;height:16px;cursor:pointer;justify-self:end;">
                 </div>
                 <div class="form-group" style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px;">
                     <button class="btn btn-outline" style="border-color:var(--red);color:var(--red);" onclick="clearAllData()" data-i18n="btn.clear_data">🗑 Borrar todos los datos</button>
