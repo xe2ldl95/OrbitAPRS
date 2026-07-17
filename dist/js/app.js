@@ -625,6 +625,7 @@ function updateDisplays() {
     }
     
     renderQSOs();
+    renderQuickActions();
 }
 
 function useGPSSettings() {

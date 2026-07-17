@@ -150,10 +150,10 @@ function resolveMacroTemplate(macro, target) {
 function renderQuickActions() {
     const container = document.getElementById('quickActions');
     if (!container) return;
-    const enabled = state.terrestrialMacrosEnabled !== false;
+    const macrosEnabled = isSatMode() || state.terrestrialMacrosEnabled !== false;
     container.innerHTML = state.macros.map(m => {
         const isPos = m.template && m.template.charAt(0) === '=';
-        const disabled = !enabled && !isPos;
+        const disabled = !macrosEnabled && !isPos;
         return '<button class="btn-quick' + (disabled ? ' disabled' : '') + '" onclick="sendQuickAction(\'' + m.id + '\')" title="' + escapeHTML(m.template || '') + '"' + (disabled ? ' disabled' : '') + '>' + (m.icon || '🔘') + ' ' + escapeHTML(m.name || '?') + '</button>';
     }).join('');
 }

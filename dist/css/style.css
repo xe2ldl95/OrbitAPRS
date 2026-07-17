@@ -96,7 +96,7 @@ body {
 .panel-body.no-padding { padding: 0; }
 
 .left-column { flex: 2; display: flex; flex-direction: column; gap: 4px; min-width: 360px; min-height: 0; }
-.terminal-panel { flex: 2; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.terminal-panel { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
 .terminal {
     background: var(--terminal-bg); font-family: var(--font-mono);
     font-size: 0.82em; line-height: 1.6; padding: 10px; flex: 1; min-height: 0;
@@ -110,7 +110,7 @@ body {
 .terminal .line.rx-echo { color: var(--green); }
 .terminal .line.system { color: #666; }
 .terminal .timestamp { color: #555; margin-right: 8px; }
-.input-panel { flex: 1; min-height: 75px; }
+.input-panel { flex: 0 0 auto; min-height: 75px; }
 .input-area { display: flex; flex-direction: column; gap: 6px; height: 100%; }
 .input-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .input-row input, .input-row select {
