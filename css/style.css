@@ -156,6 +156,7 @@ body {
 }
 .heard-item:hover { background: #1a2434; }
 .heard-item.heard-active { background: #1a2a3a; border-left: 3px solid var(--blue); padding-left: 7px; }
+.heard-item.selected { background: rgba(52, 152, 219, 0.25); outline: 1px solid var(--blue); }
 .heard-call { font-weight: 600; color: var(--text-bright); font-size: 0.9em; font-family: var(--font-mono); }
 .heard-meta { display: flex; gap: 8px; align-items: center; font-size: 0.75em; }
 .heard-count { background: #1a2a3a; color: var(--accent); padding: 1px 7px; border-radius: 10px; font-weight: 600; }

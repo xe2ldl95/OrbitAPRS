@@ -769,11 +769,12 @@ function renderHeardList() {
         return;
     }
     const target = document.getElementById('packetTarget').value.trim().toUpperCase();
-    heard.innerHTML = state.heardStations.map(s => {
+    heard.innerHTML = state.heardStations.map((s, idx) => {
         const secs = Math.round((Date.now() - s.lastHeard) / 1000);
         const ago = secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm';
         const active = s.call === target ? ' heard-active' : '';
-        return '<div class="heard-item' + active + '" onclick="document.getElementById(\'packetTarget\').value=\'' + s.call + '\';renderHeardList()">' +
+        const selected = idx === _heardIdx ? ' selected' : '';
+        return '<div class="heard-item' + active + selected + '" onclick="document.getElementById(\'packetTarget\').value=\'' + s.call + '\';_heardIdx=-1;renderHeardList()">' +
             '<div class="heard-call">' + s.call + '</div>' +
             '<div class="heard-meta"><span class="heard-count">' + s.count + '</span><span class="heard-time">' + ago + '</span></div>' +
             '</div>';
@@ -989,6 +990,25 @@ document.addEventListener('keydown', function(e) {
         toggleModal('settingsModal', false);
         toggleModal('satModal', false);
         toggleModal('beaconModal', false);
+    }
+    // F1-F12 -> macros[0-11]
+    if (e.key.startsWith('F') && e.key.length >= 2) {
+        const fn = parseInt(e.key.slice(1), 10);
+        if (fn >= 1 && fn <= 12 && state.macros[fn - 1]) {
+            e.preventDefault();
+            sendQuickAction(state.macros[fn - 1].id);
+        }
+    }
+    // Ctrl+Shift+1-9,0 -> macros[0-9] (alternativa sin F-keys)
+    if (e.ctrlKey && e.shiftKey && e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        const idx = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
+        if (state.macros[idx]) sendQuickAction(state.macros[idx].id);
+    }
+    // Ctrl+Enter -> TX rápido (macro[0])
+    if (e.ctrlKey && e.key === 'Enter') {
+        e.preventDefault();
+        buildAndSendPacket();
     }
 });
 
@@ -1486,4 +1506,65 @@ function sendToSW(msg) {
 function clearTileCache() {
     sendToSW({ type: 'CLEAR_TILE_CACHE' });
     showToast(t('toast.tile_cache_cleared'));
+}
+
+// ── Keyboard handlers ──
+
+let _heardIdx = -1;
+
+function initKeyboardHandlers() {
+    const targetInput = document.getElementById('packetTarget');
+    const msgInput = document.getElementById('freeTextPacket');
+
+    if (targetInput) {
+        targetInput.addEventListener('keydown', function(e) {
+            // Tab / Enter -> focus message input
+            if (e.key === 'Tab' || e.key === 'Enter') {
+                e.preventDefault();
+                if (msgInput) msgInput.focus();
+                return;
+            }
+            // Up / Down -> navigate heard list
+            const heard = state.heardStations || [];
+            if (heard.length === 0) return;
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                _heardIdx = (_heardIdx - 1 + heard.length) % heard.length;
+                renderHeardList();
+                scrollHeardIntoView();
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                _heardIdx = (_heardIdx + 1) % heard.length;
+                renderHeardList();
+                scrollHeardIntoView();
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                // Set callsign and move to message
+                if (_heardIdx >= 0 && _heardIdx < heard.length) {
+                    e.preventDefault();
+                    targetInput.value = heard[_heardIdx].call;
+                    _heardIdx = -1;
+                    renderHeardList();
+                    if (msgInput) msgInput.focus();
+                }
+            }
+        });
+    }
+
+    if (msgInput) {
+        msgInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                if (targetInput) targetInput.focus();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                sendFreeTextPacket();
+            }
+        });
+    }
+}
+
+function scrollHeardIntoView() {
+    const container = document.getElementById('heardList');
+    const selected = container?.querySelector('.heard-item.selected');
+    if (selected) selected.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
