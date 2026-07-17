@@ -1,0 +1,1599 @@
+var _pendingAcks = [];
+var _ackTimer = null;
+var _recentAcked = {};
+var _pktDedup = new Map();
+
+function extractMsgId(info) {
+    if (!info) return null;
+    var m = info.match(/\{([a-zA-Z0-9]{1,4})\}?/);
+    return m ? m[1] : null;
+}
+
+function startAckTimer() {
+    stopAckTimer();
+    _ackTimer = setInterval(processPendingAcks, 5000);
+}
+
+function stopAckTimer() {
+    if (_ackTimer) { clearInterval(_ackTimer); _ackTimer = null; }
+}
+
+function processPendingAcks() {
+    if (!state.tnc || !state.tnc.connected) return;
+    var now = Date.now();
+    var maxRetries = state.msgRetries || 3;
+    var remaining = [];
+    for (var i = 0; i < _pendingAcks.length; i++) {
+        var p = _pendingAcks[i];
+        if (now < p.nextRetry) { remaining.push(p); continue; }
+        if (p.retries >= maxRetries) {
+            addTerminalLine('system', 'Message to ' + p.target + ' not acknowledged (msg #' + p.msgId + ')');
+            continue;
+        }
+        p.retries++;
+        p.lastSent = now;
+        p.interval = Math.min(p.interval * 2, 180000);
+        p.nextRetry = now + p.interval;
+        var sourceCall = state.myCall;
+        var destCall = isSatMode() ? state.tocallMsgSat : state.tocallMsgTer;
+        var fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, p.info);
+        try {
+            var ax25 = buildAX25Frame({
+                infoField: p.info,
+                sourceCall: sourceCall,
+                destCall: destCall,
+                digipath: state.digipath,
+                fullPacket: fullPacket,
+            });
+            state.tnc.send(ax25);
+            addTerminalLine('tx', fullPacket + ' [retry ' + p.retries + '/' + maxRetries + ']');
+        } catch (e) {
+            showToast(t('toast.tx_error') + ' ' + e.message, true);
+        }
+        remaining.push(p);
+    }
+    _pendingAcks = remaining;
+    if (_pendingAcks.length === 0) stopAckTimer();
+}
+
+function confirmAck(target, msgId) {
+    var idx = -1;
+    for (var i = 0; i < _pendingAcks.length; i++) {
+        if (_pendingAcks[i].target.split('-')[0] === target.split('-')[0] && _pendingAcks[i].msgId === msgId) {
+            idx = i; break;
+        }
+    }
+    if (idx >= 0) {
+        _pendingAcks.splice(idx, 1);
+        addTerminalLine('system', 'ACK received from ' + target + ' for msg #' + msgId);
+        showToast(t('toast.msg_acknowledged') + target);
+        if (_pendingAcks.length === 0) stopAckTimer();
+    }
+    // Confirm pending chat message
+    var key = target.split('-')[0].toUpperCase();
+    var msgs = _chatMessages[key];
+    if (msgs) {
+        for (var mi = msgs.length - 1; mi >= 0; mi--) {
+            if (msgs[mi].msgId === msgId && msgs[mi].status === 'pending') {
+                msgs[mi].status = 'confirmed';
+                saveChatMessages();
+                if (key === state.chatActive) renderChatMessages(key);
+                break;
+            }
+        }
+    }
+}
+
+function abortPendingAcks() {
+    var count = _pendingAcks.length;
+    if (count === 0) return;
+    // Mark all pending chat messages as 'aborted'
+    for (var i = 0; i < _pendingAcks.length; i++) {
+        var p = _pendingAcks[i];
+        var key = p.target.split('-')[0].toUpperCase();
+        var msgs = _chatMessages[key];
+        if (msgs) {
+            for (var mi = msgs.length - 1; mi >= 0; mi--) {
+                if (msgs[mi].msgId === p.msgId && msgs[mi].status === 'pending') {
+                    msgs[mi].status = 'aborted';
+                    break;
+                }
+            }
+        }
+    }
+    _pendingAcks = [];
+    stopAckTimer();
+    saveChatMessages();
+    addTerminalLine('system', 'ACK retries ABORTED (' + count + ' pending message(s) cancelled)');
+    showToast(t('toast.ack_aborted'));
+    if (state.chatActive) renderChatMessages(state.chatActive);
+}
+
+function sendRejResponse(sourceCall, msgId) {
+    var info = ':' + sourceCall.padEnd(9, ' ') + ':rej' + msgId;
+    var fullPacket = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, info);
+    if (state.tnc && state.tnc.connected) {
+        try {
+            var ax25 = buildAX25Frame({
+                infoField: info, sourceCall: state.myCall,
+                destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: fullPacket,
+            });
+            state.tnc.send(ax25);
+            addTerminalLine('tx', fullPacket);
+        } catch (e) {}
+    }
+}
+
+function purgeInactiveStations() {
+    var now = Date.now();
+    state.heardStations = state.heardStations.filter(function(s) {
+        return now - s.lastHeard < 7200000;
+    });
+}
+
+function resolveMacroTemplate(macro, target) {
+    const parts = target ? target.trim().split(/\s+/) : [];
+    const tcall = (parts[0] || '').toUpperCase();
+    const tloc = (parts[1] || '').toUpperCase();
+    const sat = state.selectedSat && satelliteDB.find(s => s.id === state.selectedSat);
+    const satName = sat ? sat.name.toUpperCase().split(' ')[0] : 'SAT';
+    const seq = String(state.msgIdCounter || 0).padStart(2, '0');
+    let t = macro.template;
+    // UISS percent tokens (resolve before brace tokens)
+    t = t.replace(/%C/g, tcall);
+    t = t.replace(/%c/g, tcall.split('-')[0]);
+    t = t.replace(/%M/g, state.myCall || 'N0CALL');
+    t = t.replace(/%G/g, (state.myGrid || '--').toUpperCase());
+    t = t.replace(/%RST/g, state.rstDefault || '59');
+    t = t.replace(/%R/g, tloc);
+    t = t.replace(/%S/g, satName);
+    t = t.replace(/%N/g, seq);
+    t = t.replace(/%T/g, state.stationSymbolTable || '/');
+    t = t.replace(/%Y/g, state.stationSymbolCode || '[');
+    // Legacy brace tokens (backward compatibility)
+    t = t.replace(/\{mycall\}/g, state.myCall || 'N0CALL');
+    t = t.replace(/\{mygrid\}/g, (state.myGrid || '--').toUpperCase());
+    t = t.replace(/\{lat\}/g, latToAPRS(state.myLat));
+    t = t.replace(/\{lon\}/g, lonToAPRS(state.myLon));
+    t = t.replace(/\{callsign\}/g, tcall);
+    t = t.replace(/\{locator\}/g, tloc);
+    t = t.replace(/\{satname\}/g, satName);
+    return t;
+}
+
+function renderQuickActions() {
+    const container = document.getElementById('quickActions');
+    if (!container) return;
+    const macrosEnabled = isSatMode() || state.terrestrialMacrosEnabled !== false;
+    container.innerHTML = state.macros.map(m => {
+        const isPos = m.template && m.template.charAt(0) === '=';
+        const disabled = !macrosEnabled && !isPos;
+        return '<button class="btn-quick' + (disabled ? ' disabled' : '') + '" onclick="sendQuickAction(\'' + m.id + '\')" title="' + escapeHTML(m.template || '') + '"' + (disabled ? ' disabled' : '') + '>' + (m.icon || '🔘') + ' ' + escapeHTML(m.name || '?') + '</button>';
+    }).join('');
+}
+
+function renderMacroEditor() {
+    const container = document.getElementById('macroEditor');
+    if (!container) return;
+    container.innerHTML = state.macros.map((m, i) =>
+        '<div class="macro-row" data-idx="' + i + '">' +
+            '<input class="macro-name" value="' + escapeHTML(m.name || '') + '" placeholder="Name" onchange="updateMacro(' + i + ',\'name\',this.value)" maxlength="16">' +
+            '<input class="macro-template" value="' + escapeHTML(m.template || '') + '" placeholder="Template" onchange="updateMacro(' + i + ',\'template\',this.value)" maxlength="200">' +
+            '<label class="macro-log" title="Auto-log QSO when sent"><input type="checkbox" onchange="updateMacro(' + i + ',\'logQSO\',this.checked)"' + (m.logQSO ? ' checked' : '') + '>📝</label>' +
+            ((m.template || '').charAt(0) === '=' ? '<span class="station-symbol-indicator">' + getSymbolHtml(state.stationSymbolTable || '/', state.stationSymbolCode || '[') + '</span>' : '') +
+            '<button class="macro-del" onclick="removeMacro(' + i + ')" title="Remove">✕</button>' +
+        '</div>'
+    ).join('');
+}
+
+function updateMacro(idx, field, value) {
+    if (idx < 0 || idx >= state.macros.length) return;
+    state.macros[idx][field] = value;
+    renderQuickActions();
+    if (field === 'template') renderMacroEditor();
+}
+
+function addMacro() {
+    const id = 'm' + Date.now();
+    state.macros.push({ id, name: 'New', icon: '🔘', template: 'Hello World', logQSO: false });
+    renderMacroEditor();
+    renderQuickActions();
+}
+
+function removeMacro(idx) {
+    if (state.macros.length <= 1) {     showToast(t('toast.need_macro'), true); return; }
+    state.macros.splice(idx, 1);
+    renderMacroEditor();
+    renderQuickActions();
+}
+
+var _symbolPickerTarget = '';
+
+function jsEsc(str) {
+    return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+function openStationSymbolPicker() {
+    _symbolPickerTarget = 'station';
+    renderSymbolPicker(state.stationSymbolTable || '/', state.stationSymbolCode || '[');
+    toggleModal('symbolPickerModal', true);
+}
+
+function selectSymbol(table, sym) {
+    state.stationSymbolTable = table;
+    state.stationSymbolCode = sym;
+    var stBtn = document.getElementById('stationSymbolBtn');
+    if (stBtn) {
+        var name = getSymbolName(table, sym);
+        stBtn.innerHTML = '<img src="icons/symbols/' + (table === '/' ? 'primary' : 'alternate') + '/' + sym.charCodeAt(0) + '.png" width="16" height="16" style="vertical-align:middle;margin-right:4px;">' + table + sym + ' ' + name;
+    }
+    _symbolPickerTarget = '';
+    toggleModal('symbolPickerModal', false);
+}
+
+function getSymbolName(table, sym) {
+    var key = table === '/' ? 'primary' : 'alternate';
+    var syms = (typeof APRS_SYMBOLS !== 'undefined') ? APRS_SYMBOLS[key] : null;
+    return (syms && syms[sym]) ? syms[sym] : sym;
+}
+
+function getSymbolHtml(tbl, sym) {
+    var name = getSymbolName(tbl, sym);
+    var code = sym.charCodeAt(0);
+    var dir = tbl === '/' ? 'primary' : 'alternate';
+    return '<img src="icons/symbols/' + dir + '/' + code + '.png" width="14" height="14" style="vertical-align:middle;margin-right:2px;">' + tbl + sym + ' ' + name;
+}
+
+function renderSymbolPicker(activeTable, activeSymbol) {
+    var el = document.getElementById('symbolPickerContent');
+    if (!el) return;
+    var tables = ['/', '\\'];
+    var tableNames = { '/': 'Primary (/)', '\\': 'Alternate (\\)' };
+    var html = '<div class="symbol-table-toggle">';
+    var escSymbol = jsEsc(activeSymbol);
+    tables.forEach(function(t) {
+        var active = t === activeTable ? 'btn-primary' : 'btn-outline';
+        html += '<button class="btn btn-sm ' + active + '" onclick="renderSymbolPicker(\'' + jsEsc(t) + '\',\'' + escSymbol + '\')">' + tableNames[t] + '</button>';
+    });
+    html += '</div>';
+    html += '<div class="symbol-picker-grid">';
+    var dir = activeTable === '/' ? 'primary' : 'alternate';
+    var escTable = jsEsc(activeTable);
+    for (var code = 33; code <= 126; code++) {
+        var ch = String.fromCharCode(code);
+        var selected = ch === activeSymbol ? ' selected' : '';
+        html += '<div class="symbol-picker-cell' + selected + '" onclick="selectSymbol(\'' + escTable + '\',\'' + jsEsc(ch) + '\')"><img src="icons/symbols/' + dir + '/' + code + '.png" width="20" height="20" alt="' + escapeHTML(ch) + '"></div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+}
+
+function resetMacros() {
+    state.macros = DEFAULT_MACROS.map(m => ({...m}));
+    renderMacroEditor();
+    renderQuickActions();
+    showToast(t('toast.macros_reset'));
+}
+
+function sendQuickAction(action) {
+    const target = document.getElementById('packetTarget').value.trim().toUpperCase();
+    if (state.myCall === 'N0CALL') { showToast(t('toast.set_callsign'), true); return; }
+    const macro = state.macros.find(m => m.id === action);
+    if (!macro) {
+        addTerminalLine('system', 'TX: macro "' + action + '" not found');
+        return;
+    }
+    let info = resolveMacroTemplate(macro, target);
+    // APRS message formatting (type ':'): pad destination to 9 chars, optionally add {xxxx sequence
+    if (info[0] === ':') {
+        const secondColon = info.indexOf(':', 1);
+        let ackEnabled = false;
+        if (secondColon > 1 && secondColon < 12) {
+            const dest = info.slice(1, secondColon);
+            const body = info.slice(secondColon + 1);
+            const msgIdMatch = body.match(/\{([a-zA-Z0-9]{1,4})$/);
+            const msgId = msgIdMatch ? msgIdMatch[1] : null;
+            const msg = msgIdMatch ? body.slice(0, body.lastIndexOf('{')) : body;
+            const destBase = dest.split('-')[0].toUpperCase();
+            ackEnabled = state.chatAck[destBase] === true;
+            info = formatAPRSMessage(dest, msg, ackEnabled ? (msgId || String(state.msgIdCounter).padStart(2, '0')) : undefined);
+        }
+        if (ackEnabled && !/\{[a-zA-Z0-9]{1,4}$/.test(info)) {
+            const seq = String(state.msgIdCounter).padStart(2, '0');
+            info += '{' + seq;
+        }
+        state.msgIdCounter = (state.msgIdCounter % 99) + 1;
+        persistSettings();
+    }
+    const sourceCall = state.myCall;
+    const isSat = isSatMode();
+    const destCall = info[0] === ':'
+        ? (isSat ? state.tocallMsgSat : state.tocallMsgTer)
+        : (isSat ? state.tocallPosSat : state.tocallPosTer);
+    const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
+    const packet = {
+        infoField: info,
+        sourceCall: sourceCall,
+        destCall: destCall,
+        digipath: state.digipath,
+        fullPacket: fullPacket,
+    };
+    addTerminalLine('tx', fullPacket);
+    if (state.tnc && state.tnc.connected) {
+        try {
+            const ax25 = buildAX25Frame(packet);
+            state.tnc.send(ax25);
+            if (macro.logQSO && target && target.length >= 3 && isSat) {
+                const pts = target.split(' ');
+                const tc = pts[0], tg = pts[1] || '';
+                if (tc.length >= 3) {
+                    const existing = state.pendingQSOs.findIndex(p =>
+                        p.call === tc.toUpperCase() && p.satId === state.selectedSat
+                    );
+                    if (existing < 0) {
+                        var msgBody = info.slice(info.indexOf(':', 1) + 1);
+                        var rstSentReal = extractRST(msgBody) || state.rstDefault;
+                        state.pendingQSOs.push({
+                            call: tc.toUpperCase(),
+                            grid: tg.toUpperCase() || '--',
+                            satId: state.selectedSat,
+                            time: getUTCNow(),
+                            rstSent: rstSentReal,
+                        });
+                        persistSettings();
+                        addTerminalLine('system', t('terminal.qso_pending') + tc.toUpperCase());
+                    }
+                }
+            }
+            var msgId = extractMsgId(info);
+            var enqTarget = target.split(' ')[0].split('-')[0];
+            if (info[0] === ':' && msgId && state.msgRetries > 0) {
+                _pendingAcks.push({ target: enqTarget, msgId: msgId, info: info, retries: 0, lastSent: Date.now(), interval: 15000, nextRetry: Date.now() + 15000 });
+                if (_pendingAcks.length > 50) _pendingAcks.shift();
+                if (!_ackTimer) startAckTimer();
+            }
+            if (info[0] === ':' && !isSatMode()) {
+                var chatBody = extractMessageBody(info);
+                if (chatBody) addChatMessage(enqTarget, chatBody, 'sent', msgId, state.msgRetries > 0 && msgId ? 'pending' : null);
+            }
+        } catch (e) {
+            showToast(t('toast.tx_error') + ' ' + e.message, true);
+        }
+    } else {
+        addTerminalLine('system', t('toast.tnc_packet_logged'));
+    }
+}
+
+function buildAndSendPacket() {
+    if (state.macros.length) sendQuickAction(state.macros[0].id);
+}
+
+function addTerminalLine(type, message) {
+    const terminal = document.getElementById('terminal');
+    const ts = getUTCShort();
+    const line = document.createElement('div');
+    line.className = 'line ' + type;
+    var color = null;
+    if (type === 'tx') color = state.termColorTx;
+    else if (type === 'rx') color = state.termColorRx;
+    else if (type === 'rx-echo') color = state.termColorEcho;
+    else if (type === 'rx-rpt') color = state.termColorOwn;
+    if (color) line.style.color = color;
+    line.innerHTML = '<span class="timestamp">[' + ts + ']</span> ' + escapeHTML(message);
+    terminal.appendChild(line);
+    terminal.scrollTop = terminal.scrollHeight;
+    const maxLines = state.logLines || 300;
+    while (terminal.children.length > maxLines) terminal.removeChild(terminal.firstChild);
+}
+
+function escapeHTML(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function splitThirdPartyPackets(info) {
+    const results = [];
+    const parts = info.split('}');
+    for (let i = 1; i < parts.length; i++) {
+        const raw = parts[i];
+        const gt = raw.indexOf('>');
+        if (gt < 0) continue;
+        const src = raw.slice(0, gt);
+        if (src.length < 1 || src.length > 9) continue;
+        const afterGt = raw.slice(gt + 1);
+        const colon = afterGt.indexOf(':');
+        if (colon < 0) continue;
+        const destPath = afterGt.slice(0, colon);
+        const dest = destPath.split(',')[0];
+        if (dest.length < 1 || dest.length > 9) continue;
+        let innerInfo = afterGt.slice(colon + 1);
+        innerInfo = innerInfo.replace(/[\x00-\x1F\x7F-\xFF]+$/, '');
+        results.push({ src, dest, info: innerInfo });
+    }
+    return results;
+}
+
+function _updateHeardFromPkt(pkt) {
+    const aprsFromPkt = extractAPRSData(pkt.info, pkt.dest);
+    const existing = state.heardStations.find(s => s.call === pkt.source);
+    if (existing) {
+        existing.lastHeard = Date.now();
+        existing.count++;
+        if (aprsFromPkt.grid) existing.grid = aprsFromPkt.grid;
+        if (aprsFromPkt.lat !== null && aprsFromPkt.lat !== undefined) existing.lat = aprsFromPkt.lat;
+        if (aprsFromPkt.lon !== null && aprsFromPkt.lon !== undefined) existing.lon = aprsFromPkt.lon;
+        if (aprsFromPkt.symbol) existing.symbol = aprsFromPkt.symbol;
+        if (aprsFromPkt.symbolTable) existing.symbolTable = aprsFromPkt.symbolTable;
+    } else {
+        state.heardStations.unshift({
+            call: pkt.source,
+            lastHeard: Date.now(),
+            count: 1,
+            grid: aprsFromPkt.grid || null,
+            lat: aprsFromPkt.lat ?? null,
+            lon: aprsFromPkt.lon ?? null,
+            symbol: aprsFromPkt.symbol || null,
+            symbolTable: aprsFromPkt.symbolTable || null,
+        });
+        if (state.heardStations.length > state.heardStationsLimit) state.heardStations.pop();
+    }
+    requestHeardRender();
+}
+
+// Periodically clean old dedup cache entries
+setInterval(function() {
+    var now = Date.now();
+    for (var key of _pktDedup.keys()) {
+        if (now - _pktDedup.get(key) > 5000) _pktDedup.delete(key);
+    }
+}, 30000);
+
+function clearTerminal() {
+    document.getElementById('terminal').innerHTML =
+        '<div class="line system"><span class="timestamp">[CLEAR]</span> ' + t('terminal.cleared') + '</div>';
+}
+
+function handleClear() {
+    var panel = document.querySelector('.terminal-panel');
+    if (panel.classList.contains('chat-active')) {
+        toggleModal('chatClearModal', true);
+    } else {
+        clearTerminal();
+    }
+}
+
+function deleteChatCurrent() {
+    var call = state.chatActive;
+    if (!call) return;
+    if (!confirm(t('toast.conversation_delete') + ' ' + call + '?')) return;
+    delete _chatMessages[call];
+    state.chatList = state.chatList.filter(function(c) { return (c.baseCall || c.call) !== call; });
+    state.chatActive = null;
+    saveChatMessages();
+    persistSettings();
+    renderChatList();
+    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">' + t('chat.empty_state') + '</div>';
+    document.getElementById('packetTarget').value = '';
+    toggleModal('chatClearModal', false);
+    showToast(t('toast.chat_deleted'));
+}
+
+function deleteAllChats() {
+    if (!confirm(t('toast.all_conversations_delete'))) return;
+    _chatMessages = {};
+    state.chatList = [];
+    state.chatActive = null;
+    saveChatMessages();
+    persistSettings();
+    renderChatList();
+    document.getElementById('chatMessages').innerHTML = '<div class="chat-empty">' + t('chat.empty_state') + '</div>';
+    document.getElementById('packetTarget').value = '';
+    toggleModal('chatClearModal', false);
+    showToast(t('toast.all_chats_deleted'));
+}
+
+function showToast(message, isError) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = 'toast ' + (isError ? 'error' : '') + ' show';
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => { toast.className = 'toast'; }, 2500);
+}
+
+function toggleModal(id, show) {
+    const modal = document.getElementById(id);
+    if (show) {
+        modal.classList.add('active');
+        if (id === 'settingsModal') {
+            populateSettingsFields();
+            populateFreqOverrides();
+            renderSatListManage();
+            switchSettingsTab('station');
+        } else if (id === 'satModal') {
+            renderSatModal();
+        } else if (id === 'beaconModal') {
+            document.getElementById('beaconInterval').value = state.beaconInterval;
+            document.getElementById('beaconShareLocation').checked = state.beaconShareLocation;
+            document.getElementById('beaconMessage').value = state.beaconMessage;
+            document.getElementById('beaconToggle').checked = state.beaconEnabled;
+            var si = document.getElementById('beaconStationSymbol');
+            if (si) {
+                var tbl = state.stationSymbolTable || '/';
+                var sym = state.stationSymbolCode || '[';
+                si.innerHTML = getSymbolHtml(tbl, sym);
+            }
+        }
+    } else {
+        modal.classList.remove('active');
+    }
+}
+
+function populateFreqOverrides() {
+    var sel = document.getElementById('setFreqOverrideSat');
+    if (!sel) return;
+    var prev = sel.value;
+    sel.innerHTML = '<option value="">-- Select satellite --</option>';
+    for (var i = 0; i < satelliteDB.length; i++) {
+        var s = satelliteDB[i];
+        sel.innerHTML += '<option value="' + s.id + '">' + s.name + '</option>';
+    }
+    sel.value = prev || state.selectedSat || '';
+    onFreqOverrideSatChange();
+}
+
+function onFreqOverrideSatChange() {
+    var sel = document.getElementById('setFreqOverrideSat');
+    var inp = document.getElementById('setFreqOverrideVal');
+    var def = document.getElementById('freqOverrideDefault');
+    if (!sel || !inp || !def) return;
+    var satId = sel.value;
+    if (!satId) {
+        inp.value = '';
+        def.textContent = t('label.default_freq') + ' -- MHz';
+        return;
+    }
+    var sat = satelliteDB.find(function(s) { return s.id === satId; });
+    def.textContent = t('label.default_freq') + (sat ? sat.freq.toFixed(3) : '--') + ' MHz';
+    inp.value = state.satFreqOverrides[satId] !== undefined ? state.satFreqOverrides[satId] : '';
+}
+
+function onFreqOverrideValChange() {
+    var sel = document.getElementById('setFreqOverrideSat');
+    var inp = document.getElementById('setFreqOverrideVal');
+    if (!sel || !inp) return;
+    var satId = sel.value;
+    if (!satId) return;
+    var val = inp.value.trim();
+    if (val) {
+        state.satFreqOverrides[satId] = parseFloat(val);
+    } else {
+        delete state.satFreqOverrides[satId];
+    }
+    var sat = satelliteDB.find(function(s) { return s.id === satId; });
+    if (sat) {
+        state.txFreq = (state.satFreqOverrides && state.satFreqOverrides[satId]) || sat.freq;
+        updateDisplays();
+    }
+}
+
+function resetFreqOverride() {
+    var sel = document.getElementById('setFreqOverrideSat');
+    var inp = document.getElementById('setFreqOverrideVal');
+    if (!sel || !inp) return;
+    var satId = sel.value;
+    if (!satId) return;
+    delete state.satFreqOverrides[satId];
+    var sat = satelliteDB.find(function(s) { return s.id === satId; });
+    if (sat) {
+        state.txFreq = sat.freq;
+        updateDisplays();
+    }
+    onFreqOverrideSatChange();
+    showToast(t('toast.override_reset') + ' ' + satId);
+}
+
+function switchSettingsTab(tabName) {
+    document.querySelectorAll('.settings-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.settings-tabs .tab-btn[data-tab="' + tabName + '"]').classList.add('active');
+    document.querySelectorAll('.modal .tab-content').forEach(t => t.style.display = 'none');
+    document.getElementById('tab-' + tabName).style.display = '';
+    if (tabName === 'macros') renderMacroEditor();
+    if (tabName === 'sat') { populateFreqOverrides(); renderSatListManage(); }
+    if (tabName === 'general') {
+        if (document.getElementById('setLang')) {
+            document.getElementById('setLang').value = state.lang || 'es';
+        }
+    }
+}
+
+document.getElementById('settingsModal').addEventListener('click', function(e) {
+    if (e.target === this) toggleModal('settingsModal', false);
+});
+document.getElementById('satModal').addEventListener('click', function(e) {
+    if (e.target === this) toggleModal('satModal', false);
+});
+document.getElementById('beaconModal').addEventListener('click', function(e) {
+    if (e.target === this) toggleModal('beaconModal', false);
+});
+document.querySelector('.header .logo').addEventListener('click', () => {
+    toggleModal('settingsModal', true);
+    requestCompassPermission();
+});
+
+async function tncConnect() {
+    const type = state.tncType || 'serial';
+    let port = '';
+    let host = '';
+    const baud = parseInt(state.tncBaud) || 57600;
+    
+    if (type === 'tcp') {
+        host = state.tncHost || 'localhost';
+        port = parseInt(state.tncPort) || 8001;
+        if (!host) { showToast(t('toast.tcp_host_required'), true); return; }
+        if (!port) { showToast(t('toast.tcp_port_required'), true); return; }
+    }
+    
+    if (!state.tnc) state.tnc = new TNC();
+    if (state.tnc.connected) await state.tnc.disconnect();
+    state.tnc.onPacket = (pkt) => {
+        // ── Third-party packet expansion ──
+        if (pkt.info && pkt.info[0] === '}') {
+            var innerPkts = splitThirdPartyPackets(pkt.info);
+            for (var tpi = 0; tpi < innerPkts.length; tpi++) {
+                var tp = innerPkts[tpi];
+                var tpKey = tp.src + '|' + tp.dest + '|' + tp.info;
+                var tpNow = Date.now();
+                if (_pktDedup.has(tpKey) && tpNow - _pktDedup.get(tpKey) < 500) continue;
+                _pktDedup.set(tpKey, tpNow);
+                addTerminalLine('rx', tp.src + ' > ' + tp.dest + ' : ' + tp.info + ' [via ' + pkt.source + ']');
+                document.getElementById('tncStatusDot').className = 'status-dot active';
+                logPacketFromTNC({ source: tp.src, sourceBase: tp.src.split('-')[0], dest: tp.dest, info: tp.info });
+                _updateHeardFromPkt({ source: tp.src, dest: tp.dest, info: tp.info });
+                // CHAT: store received messages directed to us (terrestrial only)
+                if (tp.info[0] === ':' && !isSatMode()) {
+                    var tpBody = extractMessageBody(tp.info);
+                    if (tpBody && msgDestIsForUs(tp.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}/i.test(tpBody)) {
+                        addChatMessage(tp.src, tpBody, 'received');
+                    }
+                }
+                // ACK: auto-respond to third-party messages with {xx} directed to us
+                if (tp.info[0] === ':' && msgDestIsForUs(tp.info)) {
+                    var tpMsgId = extractMsgId(tp.info);
+                    var tpAckKey = tp.src + ':' + tpMsgId;
+                    var tpLastAck = _recentAcked[tpAckKey] || 0;
+                    if (tpMsgId && Date.now() - tpLastAck > 10000) {
+                        _recentAcked[tpAckKey] = Date.now();
+                        var tpAckInfo = ':' + tp.src.padEnd(9, ' ') + ':ack' + tpMsgId;
+                        var tpAckFull = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, tpAckInfo);
+                        if (state.tnc && state.tnc.connected) {
+                            try {
+                                var tpAckPacket = buildAX25Frame({
+                                    infoField: tpAckInfo, sourceCall: state.myCall,
+                                    destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: tpAckFull,
+                                });
+                                state.tnc.send(tpAckPacket);
+                                addTerminalLine('tx', tpAckFull);
+                            } catch (e) {
+                                addTerminalLine('system', 'ACK TX error: ' + e.message);
+                            }
+                        }
+                        // Prune stale _recentAcked entries (>1h old)
+                        var tpKeys = Object.keys(_recentAcked);
+                        if (tpKeys.length > 200) {
+                            var tpCutoff = Date.now() - 3600000;
+                            for (var tki = 0; tki < tpKeys.length; tki++) {
+                                if (_recentAcked[tpKeys[tki]] < tpCutoff) delete _recentAcked[tpKeys[tki]];
+                            }
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
+        // ── Deduplication (500ms window) ──
+        var pktKey = pkt.source + '|' + pkt.dest + '|' + pkt.info;
+        var now = Date.now();
+        if (_pktDedup.has(pktKey) && now - _pktDedup.get(pktKey) < 500) return;
+        _pktDedup.set(pktKey, now);
+
+        const isOwn = pkt.source.toUpperCase() === state.myCall.toUpperCase();
+        const isRpt = isOwn && pkt.digiRepeated && pkt.digiRepeated.some(r => r);
+        const lineType = isOwn ? (isRpt ? 'rx-rpt' : 'rx-echo') : 'rx';
+        addTerminalLine(lineType, pkt.source + ' > ' + pkt.dest + ' : ' + pkt.info);
+        document.getElementById('tncStatusDot').className = 'status-dot active';
+        logPacketFromTNC(pkt);
+        _updateHeardFromPkt(pkt);
+        // Chat: store received messages directed to us (terrestrial only)
+        if (pkt.info && pkt.info[0] === ':' && !isSatMode()) {
+            var msgBody = extractMessageBody(pkt.info);
+            if (msgBody && msgDestIsForUs(pkt.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}/i.test(msgBody)) {
+                addChatMessage(pkt.source, msgBody, 'received');
+            }
+        }
+        // ACK: auto-respond to messages with {xx} directed to us
+        if (pkt.info && pkt.info[0] === ':' && msgDestIsForUs(pkt.info)) {
+            var msgId = extractMsgId(pkt.info);
+            var ackKey = pkt.source + ':' + msgId;
+            var lastAck = _recentAcked[ackKey] || 0;
+            if (msgId && Date.now() - lastAck > 10000) {
+                _recentAcked[ackKey] = Date.now();
+                var ackInfo = ':' + pkt.source.padEnd(9, ' ') + ':ack' + msgId;
+                var ackFull = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, ackInfo);
+                if (state.tnc && state.tnc.connected) {
+                    try {
+                        var ackPacket = buildAX25Frame({
+                            infoField: ackInfo, sourceCall: state.myCall,
+                            destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: ackFull,
+                        });
+                        state.tnc.send(ackPacket);
+                        addTerminalLine('tx', ackFull);
+                    } catch (e) {
+                        addTerminalLine('system', 'ACK TX error: ' + e.message);
+                    }
+                }
+                // Prune stale entries (>1h old)
+                var keys = Object.keys(_recentAcked);
+                if (keys.length > 200) {
+                    var cutoff = Date.now() - 3600000;
+                    for (var ki = 0; ki < keys.length; ki++) {
+                        if (_recentAcked[keys[ki]] < cutoff) delete _recentAcked[keys[ki]];
+                    }
+                }
+            }
+        }
+        // ACK/REJ: confirm pending messages when ACK or REJ received
+        if (pkt.info && pkt.info[0] === ':') {
+            var secondColon = pkt.info.indexOf(':', 1);
+            if (secondColon > 0) {
+                var body = pkt.info.slice(secondColon + 1);
+                var ackMatch = body.match(/^(ack|rej)([a-zA-Z0-9]{1,4})/i);
+                if (ackMatch && msgDestIsForUs(pkt.info)) {
+                    confirmAck(pkt.source, ackMatch[2]);
+                }
+            }
+        }
+        // Chat: handle third-party packets (}SOURCE>DEST:info)
+        if (pkt.info && pkt.info[0] === '}' && !isSatMode()) {
+            var tp = parseThirdPartyPacket(pkt.info);
+            if (tp && tp.info[0] === ':') {
+                var msgBody = extractMessageBody(tp.info);
+                if (msgBody && msgDestIsForUs(tp.info) && !/^(ack|rej)[a-zA-Z0-9]{1,4}/i.test(msgBody)) {
+                    addChatMessage(tp.source, msgBody, 'received');
+                }
+            }
+        }
+    };
+    state.tnc.onStatus = (msg, isError) => {
+        showToast(msg, isError);
+        document.getElementById('tncStatusText').textContent = 'TNC: ' + msg;
+        if (!isError) {
+            document.getElementById('tncStatusDot').className = 'status-dot active';
+            setTimeout(function() {
+                if (state.tncType !== 'tcp') {
+                    readTXGain();
+                    state.tnc.sendCommand(0x06, new Uint8Array([0x0D]));
+                }
+            }, 1000);
+        } else {
+            document.getElementById('tncStatusDot').className = 'status-dot warning';
+        }
+    };
+    state.tnc.onHardwareResponse = (resp) => {
+        if (resp.subcmd === 0x05 || resp.subcmd === 0x04) {
+            var level = resp.data.length >= 2
+                ? (resp.data[0] << 8) | resp.data[1]
+                : resp.data[0] || 0;
+            var maxVal = resp.data.length >= 2 ? 65535 : 255;
+            var pct = Math.min(100, Math.max(0, (level / maxVal) * 100));
+            var dbVal = (level || 1) / maxVal;
+            var db = 20 * Math.log10(dbVal);
+            document.getElementById('inputLevelBar').value = pct;
+            var dbEl = document.getElementById('inputLevelDb');
+            dbEl.textContent = db.toFixed(1) + ' dBFS';
+            dbEl.style.color = db > -10 ? '#e74c3c' : db > -20 ? '#f0a030' : '#2ecc71';
+            var statusEl = document.getElementById('inputLevelStatus');
+            if (db > -3) {
+                statusEl.textContent = '⚠ ' + t('status.high');
+                statusEl.style.color = '#e74c3c';
+            } else if (db > -6) {
+                statusEl.textContent = '✓ ' + t('status.optimal');
+                statusEl.style.color = '#2ecc71';
+            } else if (db > -15) {
+                statusEl.textContent = '∼ ' + t('status.acceptable');
+                statusEl.style.color = '#f0a030';
+            } else {
+                statusEl.textContent = '▼ ' + t('status.low');
+                statusEl.style.color = '#e74c3c';
+            }
+        } else if (resp.subcmd === 0x21) {
+            var val = (resp.data[0] || 0) * 10;
+            document.getElementById('setTxDelay').value = val;
+        } else if (resp.subcmd === 0x22) {
+            var val = resp.data[0] || 0;
+            document.getElementById('setPersistence').value = val;
+        } else if (resp.subcmd === 0x23) {
+            var val = (resp.data[0] || 0) * 10;
+            document.getElementById('setSlotTime').value = val;
+        } else if (resp.subcmd === 0x24) {
+            var val = (resp.data[0] || 0) * 10;
+            document.getElementById('setTxTail').value = val;
+        } else if (resp.subcmd === 0x0C) {
+            var gain = resp.data.length >= 2 ? (resp.data[0] | (resp.data[1] << 8)) : (resp.data[0] || 0);
+            var pct = Math.round(gain / 255 * 100);
+            document.getElementById('setTXGain').value = pct;
+            document.getElementById('txGainVal').textContent = pct + '%';
+        } else if (resp.subcmd === 0x0D) {
+            var gain = resp.data.length >= 2 ? (resp.data[0] | (resp.data[1] << 8)) : (resp.data[0] || 0);
+            document.getElementById('inputGainDisplay').textContent = gain;
+        }
+    };
+    
+    if (type === 'tcp') {
+        await state.tnc.connect(type, host, port);
+    } else {
+        await state.tnc.connect(type, port, baud);
+    }
+}
+
+let _heardRenderPending = false;
+function requestHeardRender() {
+    if (_heardRenderPending) return;
+    _heardRenderPending = true;
+    requestAnimationFrame(function() {
+        _heardRenderPending = false;
+        renderHeardList();
+    });
+}
+
+function clearHeardList() {
+    state.heardStations = [];
+    renderHeardList();
+    showToast(t('toast.heard_cleared'));
+}
+
+function renderHeardList() {
+    purgeInactiveStations();
+    const heard = document.getElementById('heardList');
+    if (!heard) return;
+    if (state.heardStations.length === 0) {
+        heard.innerHTML = '<div style="text-align:center;color:#555;padding:20px;font-size:0.85em;">' + t('terminal.no_stations') + '</div>';
+        if (typeof mapView !== 'undefined') mapView.updateHeard();
+        return;
+    }
+    const target = document.getElementById('packetTarget').value.trim().toUpperCase();
+    heard.innerHTML = state.heardStations.map(s => {
+        const secs = Math.round((Date.now() - s.lastHeard) / 1000);
+        const ago = secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm';
+        const active = s.call === target ? ' heard-active' : '';
+        return '<div class="heard-item' + active + '" onclick="document.getElementById(\'packetTarget\').value=\'' + s.call + '\';renderHeardList()">' +
+            '<div class="heard-call">' + s.call + '</div>' +
+            '<div class="heard-meta"><span class="heard-count">' + s.count + '</span><span class="heard-time">' + ago + '</span></div>' +
+            '</div>';
+    }).join('');
+    if (typeof mapView !== 'undefined') mapView.updateHeard();
+}
+
+function tncDisconnect() {
+    if (state.tnc) {
+        state.tnc.disconnect();
+    }
+}
+
+function toggleTNCConnection() {
+    if (state.tnc && state.tnc.connected) {
+        if (!confirm(t('confirm.disconnect_tnc'))) return;
+        tncDisconnect();
+    } else {
+        tncConnect();
+    }
+}
+
+function logQSO(satId, targetCall, targetGrid, rstSent, rstRcvd, status, messageText, freqRX, targetLat, targetLon) {
+    const sat = satelliteDB.find(s => s.id === satId) || { name: 'Unknown', freq: state.txFreq, freqRX: null };
+    const actualFreq = state.txFreq || sat.freq;
+    const actualFreqRX = freqRX || sat.freqRX || actualFreq;
+    const targetPos = gridToLatLon(targetGrid);
+    const dist = targetPos ? haversine(state.myLat, state.myLon, targetPos.lat, targetPos.lon) : null;
+    const qso = {
+        utc: getUTCNow(),
+        utcShort: getUTCShort(),
+        timeOff: getUTCNow(),
+        satellite: sat.name,
+        satId: satId,
+        freq: actualFreq,
+        freqRX: actualFreqRX,
+        band: freqToBand(actualFreq),
+        bandRX: freqToBand(actualFreqRX),
+        call: targetCall.toUpperCase(),
+        grid: targetGrid.toUpperCase(),
+        rstSent: rstSent || state.rstDefault,
+        rstRcvd: rstRcvd || state.rstDefault,
+        distanceKm: dist,
+        myGrid: state.myGrid,
+        myLat: state.myLat,
+        myLon: state.myLon,
+        targetLat: targetLat || (targetPos ? targetPos.lat : null),
+        targetLon: targetLon || (targetPos ? targetPos.lon : null),
+        status: status || 'heard',
+        mode: 'DATA',
+        qslSent: true,
+        qslRcvd: status === 'confirmed',
+        satMode: 'DATA',
+        messageText: messageText || null,
+    };
+    state.qsoLog.unshift(qso);
+    if (state.qsoLog.length > 200) state.qsoLog.length = 200;
+    persistSettings();
+    renderQSOs();
+    showToast(t('toast.qso_logged') + ' ' + qso.call + ' (' + qso.status + ')');
+}
+
+function renderQSOs() {
+    const tbody = document.getElementById('qsoBody');
+    if (state.qsoLog.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#555;padding:20px;">' + t('terminal.no_qsos') + '</td></tr>';
+        return;
+    }
+    const statusIcon = { confirmed: '🟢', sent: '🟡', heard: '⚪' };
+    tbody.innerHTML = state.qsoLog.slice(0, 50).map(function(qso, idx) {
+        return '<tr onclick="showQSOOnMap(' + idx + ')" style="cursor:pointer;">' +
+            '<td>' + qso.utcShort + '</td><td class="qso-sat">' + escapeHTML(qso.satellite) + '</td>' +
+            '<td><b>' + escapeHTML(qso.call) + '</b></td><td>' + escapeHTML(qso.grid) + '</td>' +
+            '<td>' + qso.rstSent + '/' + qso.rstRcvd + '</td>' +
+            '<td>' + (qso.distanceKm ? qso.distanceKm.toFixed(0) + 'km' : '--') + '</td>' +
+            '<td title="' + (qso.status || 'heard') + '">' + (statusIcon[qso.status] || '⚪') + '</td></tr>';
+    }).join('');
+}
+
+function clearQSOLog() {
+    if (!confirm(t('toast.qso_all_delete'))) return;
+    state.qsoLog = [];
+    persistSettings();
+    renderQSOs();
+    showToast(t('toast.qso_cleared'));
+}
+
+function exportQSOLog() {
+    if (state.qsoLog.length === 0) {
+        showToast(t('toast.no_qso_export'), true);
+        return;
+    }
+    var adi = 'ADIF Export from OrbitAPRS\n<ADIF_VER:5>3.1.0\n<PROGRAMID:10>OrbitAPRS\n<EOH>\n';
+    state.qsoLog.forEach(function(qso) {
+        var date = qso.utc.slice(0, 10).replace(/-/g, '');
+        var timeOn = qso.utc.slice(11, 19).replace(/:/g, '');
+        var timeOff = (qso.timeOff || qso.utc).slice(11, 19).replace(/:/g, '');
+        var band = qso.band || freqToBand(qso.freq);
+        var bandRX = qso.bandRX || freqToBand(qso.freqRX || qso.freq);
+        adi += '<CALL:' + qso.call.length + '>' + qso.call + ' ';
+        adi += '<QSO_DATE:8>' + date + ' ';
+        adi += '<TIME_ON:6>' + timeOn + ' ';
+        adi += '<TIME_OFF:6>' + timeOff + ' ';
+        adi += '<BAND:' + band.length + '>' + band + ' ';
+        adi += '<FREQ:' + qso.freq.toFixed(3).length + '>' + qso.freq.toFixed(3) + ' ';
+        if (qso.freqRX) adi += '<FREQ_RX:' + qso.freqRX.toFixed(3).length + '>' + qso.freqRX.toFixed(3) + ' ';
+        if (bandRX && bandRX !== band) adi += '<BAND_RX:' + bandRX.length + '>' + bandRX + ' ';
+        adi += '<MODE:4>DATA ';
+        adi += '<PROP_MODE:3>SAT ';
+        var satName = qso.satellite || 'Unknown';
+        adi += '<SAT_NAME:' + satName.length + '>' + satName + ' ';
+        adi += '<RST_SENT:' + qso.rstSent.length + '>' + qso.rstSent + ' ';
+        adi += '<RST_RCVD:' + qso.rstRcvd.length + '>' + qso.rstRcvd + ' ';
+        if (qso.grid && isValidMaidenhead(qso.grid)) adi += '<GRIDSQUARE:' + qso.grid.length + '>' + qso.grid + ' ';
+        if (qso.myGrid && isValidMaidenhead(qso.myGrid)) adi += '<MY_GRIDSQUARE:' + qso.myGrid.length + '>' + qso.myGrid + ' ';
+        if (qso.myLat !== null && qso.myLat !== undefined) adi += '<MY_LAT:10>' + qso.myLat.toFixed(6) + ' ';
+        if (qso.myLon !== null && qso.myLon !== undefined) adi += '<MY_LON:10>' + qso.myLon.toFixed(6) + ' ';
+        if (qso.targetLat !== null && qso.targetLat !== undefined) adi += '<LAT:10>' + qso.targetLat.toFixed(6) + ' ';
+        if (qso.targetLon !== null && qso.targetLon !== undefined) adi += '<LON:10>' + qso.targetLon.toFixed(6) + ' ';
+        adi += '<QSL_RCVD:1>' + (qso.status === 'confirmed' ? 'Y' : 'N') + ' ';
+        adi += '<QSL_SENT:1>Y ';
+        adi += '<STATION_CALLSIGN:' + state.myCall.length + '>' + state.myCall + ' ';
+        adi += '<OPERATOR_CALLSIGN:' + state.myCall.length + '>' + state.myCall + ' ';
+        if (qso.distanceKm) adi += '<DISTANCE:' + Math.round(qso.distanceKm).toString().length + '>' + Math.round(qso.distanceKm) + ' ';
+        if (qso.messageText) adi += '<COMMENT:' + qso.messageText.length + '>' + qso.messageText + ' ';
+        adi += '<APP_NAME:9>OrbitAPRS ';
+        adi += '<EOR>\n';
+    });
+    var blob = new Blob([adi], { type: 'text/plain' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'orbitaprs_log_' + new Date().toISOString().slice(0, 10) + '.adi';
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(t('toast.qso_exported'));
+}
+
+function showQSOOnMap(qsoIdx) {
+    if (typeof mapView !== 'undefined' && mapView.showQSO) {
+        switchTerminalTab('map');
+        mapView.showQSO(qsoIdx);
+    }
+}
+
+function calculateGridDistance(g1, g2) {
+    if (!g1 || !g2 || g1.length < 4 || g2.length < 4) return null;
+    const p1 = gridToLatLon(g1), p2 = gridToLatLon(g2);
+    if (!p1 || !p2) return null;
+    return haversine(p1.lat, p1.lon, p2.lat, p2.lon);
+}
+
+function gridToLatLon(grid) {
+    grid = grid.toUpperCase().trim();
+    if (grid.length < 4) return null;
+    const flon = grid.charCodeAt(0) - 65, flat = grid.charCodeAt(1) - 65;
+    const slon = parseInt(grid[2]) || 0, slat = parseInt(grid[3]) || 0;
+    let sublon = 0, sublat = 0;
+    if (grid.length >= 6) { sublon = grid.charCodeAt(4) - 65; sublat = grid.charCodeAt(5) - 65; }
+    const lon = (flon * 20) + (slon * 2) + (sublon * 2 / 24) - 180 + (1 / 24);
+    const lat = (flat * 10) + slat + (sublat / 24) - 90 + (0.5 / 24);
+    return { lat, lon };
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function switchTerminalTab(tab) {
+    document.querySelectorAll('.panel-tab').forEach(function(b) {
+        b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+    });
+    var terminal = document.getElementById('terminal');
+    var mapEl = document.getElementById('mapContainer');
+    var navEl = document.getElementById('navContainer');
+    var chatEl = document.getElementById('chatContainer');
+    terminal.style.display = tab === 'terminal' ? '' : 'none';
+    mapEl.style.display = tab === 'map' ? '' : 'none';
+    navEl.style.display = tab === 'nav' ? '' : 'none';
+    chatEl.style.display = tab === 'chat' ? '' : 'none';
+    var panel = document.querySelector('.terminal-panel');
+    panel.classList.toggle('map-active', tab === 'map');
+    panel.classList.toggle('nav-active', tab === 'nav');
+    panel.classList.toggle('chat-active', tab === 'chat');
+    var followBtn = document.getElementById('mapFollowBtn');
+    followBtn.style.display = tab === 'map' ? '' : 'none';
+    var tileBtn = document.getElementById('mapTileToggle');
+    if (tileBtn) {
+        tileBtn.style.display = tab === 'map' ? '' : 'none';
+        if (tab === 'map' && typeof updateTileToggleBtn === 'function') updateTileToggleBtn();
+    }
+    var clearBtn = document.getElementById('clearBtn');
+    if (clearBtn) clearBtn.style.display = (tab === 'terminal' || tab === 'chat') ? '' : 'none';
+    if (tab === 'nav' && typeof navView !== 'undefined') {
+        setTimeout(function() { navView.resize(); }, 50);
+    }
+    if (tab === 'map' && typeof mapView !== 'undefined') {
+        setTimeout(function() { if (mapView.getMap()) mapView.getMap().invalidateSize(); }, 50);
+    }
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === ',') {
+        e.preventDefault();
+        toggleModal('settingsModal', true);
+    }
+    if (e.key === 'Escape') {
+        e.preventDefault();
+        toggleModal('settingsModal', false);
+        toggleModal('satModal', false);
+        toggleModal('beaconModal', false);
+    }
+});
+
+function updateDigipathOptions(isTerrestrial) {
+    const sel = document.getElementById('setPath');
+    var html;
+    if (isTerrestrial) {
+        html = '<option>WIDE1-1</option><option>WIDE1-1,WIDE2-1</option><option>WIDE2-2</option><option>WIDE2-1</option><option>CQ</option><option>DIRECT</option>';
+    } else {
+        html = '<option>ARISS</option><option>WIDE1-1,WIDE2-1</option><option>WIDE1-1</option><option>WIDE2-2</option><option>DIRECT</option>';
+    }
+    if (state.customPaths && state.customPaths.length) {
+        for (var i = 0; i < state.customPaths.length; i++) {
+            var p = state.customPaths[i];
+            if (p && ALL_STANDARD_PATHS.indexOf(p) < 0) {
+                html += '<option>' + escapeHTML(p) + '</option>';
+            }
+        }
+    }
+    sel.innerHTML = html;
+}
+
+function sendFreeTextPacket() {
+    const target = document.getElementById('packetTarget').value.trim().toUpperCase();
+    const raw = document.getElementById('freeTextPacket').value.trim();
+    if (!target) { showToast(t('toast.enter_target'), true); return; }
+    if (!raw) { showToast(t('toast.enter_message'), true); return; }
+    if (state.myCall === 'N0CALL') { showToast(t('toast.set_callsign'), true); return; }
+
+    const seq = String(state.msgIdCounter).padStart(2, '0');
+    state.msgIdCounter = (state.msgIdCounter % 99) + 1;
+    persistSettings();
+
+    const call = target.split(' ')[0];
+    const baseCall = call.split('-')[0].toUpperCase();
+    const ackEnabled = state.chatAck[baseCall] === true;
+    const info = formatAPRSMessage(call, raw, ackEnabled ? seq : undefined);
+
+    const sourceCall = state.myCall;
+    const destCall = isSatMode() ? state.tocallMsgSat : state.tocallMsgTer;
+    const fullPacket = formatAPRSFrame(sourceCall, destCall, state.digipath, info);
+    const packet = {
+        infoField: info,
+        sourceCall: sourceCall,
+        destCall: destCall,
+        digipath: state.digipath,
+        fullPacket: fullPacket,
+    };
+    addTerminalLine('tx', fullPacket);
+    if (state.tnc && state.tnc.connected) {
+        try {
+            const ax25 = buildAX25Frame(packet);
+            state.tnc.send(ax25);
+        } catch (e) {
+            showToast(t('toast.tx_error') + ' ' + e.message, true);
+        }
+    } else {
+        addTerminalLine('system', t('toast.tnc_packet_logged'));
+    }
+    document.getElementById('freeTextPacket').value = '';
+    // Chat: store sent messages (pending ACK)
+    if (!isSatMode()) {
+        addChatMessage(call, raw, 'sent', ackEnabled ? seq : null, state.msgRetries > 0 && ackEnabled ? 'pending' : null);
+    }
+    if (state.msgRetries > 0 && ackEnabled) {
+        _pendingAcks.push({ target: call, msgId: seq, info: info, retries: 0, lastSent: Date.now(), interval: 15000, nextRetry: Date.now() + 15000 });
+        if (_pendingAcks.length > 50) _pendingAcks.shift();
+        if (!_ackTimer) startAckTimer();
+    }
+}
+
+// ── Tone calibration via KISS SetHardware ──
+function toggleCalTone() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast(t('toast.tnc_not_connected'), true);
+        document.getElementById('setToneEnable').checked = false;
+        return;
+    }
+    var enabled = document.getElementById('setToneEnable').checked;
+    if (enabled) {
+        var freq = parseInt(document.getElementById('setToneFreq').value) || 1200;
+        var subcmd = freq >= 2000 ? 0x08 : 0x07;
+        state.tnc.sendCommand(0x06, new Uint8Array([subcmd]));
+        showToast(t('toast.cal_tone') + ' ' + freq + ' Hz');
+    } else {
+        state.tnc.sendCommand(0x06, new Uint8Array([0x0A]));
+        showToast(t('toast.cal_tone_stopped'));
+    }
+}
+
+function updateCalToneFreq() {
+    if (!document.getElementById('setToneEnable').checked) return;
+    if (!state.tnc || !state.tnc.connected) return;
+    var freq = parseInt(document.getElementById('setToneFreq').value) || 1200;
+    var subcmd = freq >= 2000 ? 0x08 : 0x07;
+    state.tnc.sendCommand(0x06, new Uint8Array([0x0A]));
+    state.tnc.sendCommand(0x06, new Uint8Array([subcmd]));
+}
+
+// ── Audio level monitor (KISS streaming) ──
+var _streamingLevel = false;
+
+function toggleAudioMonitor() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast(t('toast.tnc_not_connected'), true);
+        return;
+    }
+    var btn = document.getElementById('btnAudioMonitor');
+    if (_streamingLevel) {
+        state.tnc.sendCommand(0x06, new Uint8Array([0x04]));
+        _streamingLevel = false;
+        btn.setAttribute('data-i18n', 'btn.start_monitor');
+        btn.textContent = t('btn.start_monitor');
+        document.getElementById('inputLevelBar').value = 0;
+        document.getElementById('inputLevelDb').textContent = '-- dB';
+    } else {
+        state.tnc.sendCommand(0x06, new Uint8Array([0x05]));
+        _streamingLevel = true;
+        btn.setAttribute('data-i18n', 'btn.stop_monitor');
+        btn.textContent = t('btn.stop_monitor');
+    }
+}
+
+// ── KISS apply from UI ──
+function applyKISSFromUI() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast(t('toast.tnc_not_connected'), true);
+        return;
+    }
+    var params = {
+        txDelay: parseInt(document.getElementById('setTxDelay').value) || 300,
+        persistence: parseInt(document.getElementById('setPersistence').value) || 63,
+        slotTime: parseInt(document.getElementById('setSlotTime').value) || 100,
+        txTail: parseInt(document.getElementById('setTxTail').value) || 20,
+    };
+    try {
+        state.tnc.applyKISSParams(params);
+        showToast(t('toast.kiss_applied'));
+    } catch (e) {
+        showToast(t('toast.error') + ' ' + e.message, true);
+    }
+}
+
+// ── KISS read from TNC ──
+function readKISSFromTNC() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast(t('toast.tnc_not_connected'), true);
+        return;
+    }
+    state.tnc.sendCommand(0x06, new Uint8Array([0x21]));
+    state.tnc.sendCommand(0x06, new Uint8Array([0x22]));
+    state.tnc.sendCommand(0x06, new Uint8Array([0x23]));
+    state.tnc.sendCommand(0x06, new Uint8Array([0x24]));
+    showToast(t('toast.kiss_reading'));
+}
+
+// ── Digipath custom ──
+function onDigipathChange() {
+    var sel = document.getElementById('setPath');
+    var cust = document.getElementById('setPathCustom');
+    updateAddDelBtn();
+}
+
+function onDigipathCustomInput() {
+    var cust = document.getElementById('setPathCustom');
+    cust.value = cust.value.toUpperCase().replace(/[^A-Z0-9\-,*]/g, '');
+    updateAddDelBtn();
+}
+
+function updateAddDelBtn() {
+    var btn = document.getElementById('btnAddDelPath');
+    var cust = document.getElementById('setPathCustom').value.trim().toUpperCase();
+    if (!cust) {
+        btn.disabled = true;
+        btn.textContent = t('btn.add');
+        return;
+    }
+    if (ALL_STANDARD_PATHS.indexOf(cust) >= 0) {
+        btn.disabled = true;
+        btn.textContent = t('btn.add');
+        return;
+    }
+    if (state.customPaths && state.customPaths.indexOf(cust) >= 0) {
+        btn.textContent = t('btn.del');
+        btn.disabled = false;
+    } else {
+        btn.textContent = t('btn.add');
+        btn.disabled = false;
+    }
+}
+
+function onAddDelPath() {
+    var cust = document.getElementById('setPathCustom').value.trim().toUpperCase();
+    if (!cust || ALL_STANDARD_PATHS.indexOf(cust) >= 0) return;
+    if (!state.customPaths) state.customPaths = [];
+    var idx = state.customPaths.indexOf(cust);
+    if (idx >= 0) {
+        state.customPaths.splice(idx, 1);
+    } else {
+        state.customPaths.push(cust);
+    }
+    var oldVal = document.getElementById('setPath').value;
+    updateDigipathOptions(!isSatMode());
+    var sel = document.getElementById('setPath');
+    if (Array.prototype.slice.call(sel.options).some(function(o) { return o.value === oldVal; })) {
+        sel.value = oldVal;
+    }
+    state.digipath = sel.value;
+    document.getElementById('pathDisplay').textContent = state.digipath;
+    persistSettings();
+    updateAddDelBtn();
+}
+
+// ── TX Gain ──
+function updateTXGain() {
+    var pct = parseInt(document.getElementById('setTXGain').value) || 50;
+    document.getElementById('txGainVal').textContent = pct + '%';
+    if (state.tnc && state.tnc.connected) {
+        var gain = Math.round(pct / 100 * 255);
+        state.tnc.sendCommand(0x06, new Uint8Array([0x01, gain & 0xFF, (gain >> 8) & 0xFF]));
+    }
+}
+
+function readTXGain() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast(t('toast.tnc_not_connected'), true);
+        return;
+    }
+    state.tnc.sendCommand(0x06, new Uint8Array([0x0C]));
+}
+
+// ── RX input auto-adjust ──
+function adjustInputLevels() {
+    if (!state.tnc || !state.tnc.connected) {
+        showToast(t('toast.tnc_not_connected'), true);
+        return;
+    }
+    state.tnc.sendCommand(0x06, new Uint8Array([0x2B]));
+    showToast(t('toast.rx_adjusting'));
+}
+
+// ── Chat ──
+var _chatMessages = {};
+
+function loadChatMessages() {
+    try {
+        var saved = localStorage.getItem('orbitaprs_chatmessages');
+        if (saved) _chatMessages = JSON.parse(saved);
+    } catch (e) {}
+    if (typeof _chatMessages !== 'object') _chatMessages = {};
+}
+
+function saveChatMessages() {
+    try {
+        localStorage.setItem('orbitaprs_chatmessages', JSON.stringify(_chatMessages));
+    } catch (e) {}
+}
+
+function extractMessageBody(info) {
+    if (!info || info[0] !== ':') return null;
+    var secondColon = info.indexOf(':', 1);
+    if (secondColon < 0) return null;
+    var body = info.slice(secondColon + 1);
+    var seqIdx = body.indexOf('{');
+    if (seqIdx >= 0) body = body.slice(0, seqIdx);
+    return body.trim() || null;
+}
+
+function parseThirdPartyPacket(info) {
+    if (!info || info[0] !== '}') return null;
+    var inner = info.slice(1);
+    var gtIdx = inner.indexOf('>');
+    var colonIdx = inner.indexOf(':', gtIdx);
+    if (gtIdx < 0 || colonIdx < 0) return null;
+    return {
+        source: inner.slice(0, gtIdx),
+        info: inner.slice(colonIdx + 1)
+    };
+}
+
+function addChatMessage(call, text, type, msgId, status) {
+    if (!call || !text) return;
+    var fullCall = call.toUpperCase();
+    var key = fullCall.split('-')[0];
+    if (!_chatMessages[key]) _chatMessages[key] = [];
+    _chatMessages[key].push({
+        type: type,
+        text: text,
+        time: getUTCShort(),
+        ts: Date.now(),
+        msgId: msgId || null,
+        status: status || null,
+    });
+    if (_chatMessages[key].length > 200) _chatMessages[key].shift();
+    saveChatMessages();
+
+    var existing = state.chatList.findIndex(function(c) { return (c.baseCall || c.call) === key; });
+    if (existing >= 0) {
+        var ch = state.chatList[existing];
+        ch.lastMessage = text;
+        ch.lastTime = Date.now();
+        ch.callFull = fullCall;
+        if (key !== state.chatActive) ch.unread = (ch.unread || 0) + 1;
+        state.chatList.splice(existing, 1);
+        state.chatList.unshift(ch);
+    } else {
+        state.chatList.unshift({
+            call: key,
+            baseCall: key,
+            callFull: fullCall,
+            lastMessage: text,
+            lastTime: Date.now(),
+            unread: type === 'received' ? 1 : 0
+        });
+    }
+    if (state.chatList.length > 50) state.chatList.pop();
+    persistSettings();
+    renderChatList();
+    if (key === state.chatActive) renderChatMessages(key);
+}
+
+function selectChat(call) {
+    var baseCall = call.split('-')[0];
+    state.chatActive = baseCall;
+    if (state.chatList.length) {
+        var found = state.chatList.find(function(c) { return (c.baseCall || c.call) === baseCall; });
+        if (found) {
+            found.unread = 0;
+            document.getElementById('packetTarget').value = found.callFull || found.call;
+        } else {
+            document.getElementById('packetTarget').value = call;
+        }
+    } else {
+        document.getElementById('packetTarget').value = call;
+    }
+    persistSettings();
+    renderChatView();
+}
+
+function renderChatView() {
+    renderChatList();
+    if (state.chatActive) {
+        renderChatMessages(state.chatActive);
+    } else {
+        var el = document.getElementById('chatMessages');
+        if (el) el.innerHTML = '<div class="chat-empty">Select a chat to start</div>';
+    }
+}
+
+function toggleChatAck(call) {
+    if (state.chatAck[call] === true) {
+        delete state.chatAck[call];
+    } else {
+        if (!confirm(t('chat.ack_confirm'))) return;
+        state.chatAck[call] = true;
+    }
+    persistSettings();
+    renderChatView();
+}
+
+function renderChatList() {
+    var el = document.getElementById('chatList');
+    if (!el) return;
+    if (!state.chatList.length) {
+        el.innerHTML = '<div style="padding:10px;color:#444;font-size:0.75em;text-align:center;">' + t('chat.no_chats') + '</div>';
+        return;
+    }
+    el.innerHTML = state.chatList.map(function(c) {
+        var displayCall = c.callFull || c.call;
+        var active = (c.baseCall || c.call) === state.chatActive ? ' active' : '';
+        var unreadBadge = c.unread ? '<span class="chat-list-unread">' + c.unread + '</span>' : '';
+        var ago = '';
+        if (c.lastTime) {
+            var secs = Math.round((Date.now() - c.lastTime) / 1000);
+            ago = secs < 60 ? secs + 's' : Math.floor(secs / 60) + 'm';
+        }
+        return '<div class="chat-list-item' + active + '" onclick="selectChat(\'' + displayCall + '\')">' +
+            '<div class="chat-list-top"><span class="chat-list-call">' + displayCall + '</span>' + unreadBadge + '<span class="chat-list-time">' + ago + '</span></div>' +
+            '<div class="chat-list-preview">' + escapeHTML((c.lastMessage || '').slice(0, 40)) + '</div>' +
+            '</div>';
+    }).join('');
+}
+
+function renderChatMessages(call) {
+    var headerEl = document.getElementById('chatHeader');
+    var el = document.getElementById('chatMessages');
+    if (!headerEl || !el) return;
+    var ackOn = state.chatAck[call] === true;
+
+    // Check if there are pending messages for this conversation
+    var hasPending = false;
+    var msgs = _chatMessages[call];
+    if (msgs) {
+        for (var i = 0; i < msgs.length; i++) {
+            if (msgs[i].status === 'pending') { hasPending = true; break; }
+        }
+    }
+
+    var headerHtml = '<span class="chat-header-call">' + call + '</span>' +
+        '<button class="chat-ack-toggle' + (ackOn ? ' on' : '') + '" onclick="toggleChatAck(\'' + call + '\')">' +
+        (ackOn ? t('chat.ack_on') : t('chat.ack_off')) +
+        '</button>';
+    if (hasPending) {
+        headerHtml += '<button class="chat-abort-btn" onclick="abortPendingAcks()">' +
+            (typeof t === 'function' ? t('chat.abort') : 'Abort') + '</button>';
+    }
+    headerEl.innerHTML = headerHtml;
+
+    if (!msgs || !msgs.length) {
+        el.innerHTML = '<div class="chat-empty">' + t('chat.no_messages') + '</div>';
+        return;
+    }
+    el.innerHTML = msgs.map(function(m) {
+        var cls = m.type === 'sent' ? 'sent' : 'received';
+        if (m.status === 'pending') cls += ' pending';
+        else if (m.status === 'confirmed') cls += ' confirmed';
+        else if (m.status === 'aborted') cls += ' aborted';
+        return '<div class="chat-bubble ' + cls + '">' +
+            escapeHTML(m.text) +
+            '<div class="chat-bubble-time">' + m.time + '</div>' +
+            '</div>';
+    }).join('');
+    el.scrollTop = el.scrollHeight;
+}
+
+// ── Terrestrial Beacon ──
+var _beaconTimer = null;
+
+function saveBeaconConfig() {
+    state.beaconInterval = parseInt(document.getElementById('beaconInterval').value) || 300;
+    state.beaconShareLocation = document.getElementById('beaconShareLocation').checked;
+    state.beaconMessage = document.getElementById('beaconMessage').value.trim();
+    state.beaconEnabled = document.getElementById('beaconToggle').checked;
+    persistSettings();
+    toggleModal('beaconModal', false);
+    updateBeaconState();
+    showToast(t('toast.beacon_saved'));
+}
+
+function updateBeaconState() {
+    var dot = document.getElementById('beaconStatusDot');
+    if (!dot) return;
+    var isActive = state.beaconEnabled && state.selectedSat === 'terrestrial';
+    dot.className = 'status-dot ' + (isActive ? 'active' : 'idle');
+    if (isActive) {
+        startBeaconTimer();
+    } else {
+        stopBeaconTimer();
+    }
+}
+
+function calcBeaconInterval(digipath) {
+    if (!digipath || digipath === 'DIRECT') return 600;
+    var saltos = digipath.split(',').length;
+    if (saltos <= 1) return 600;
+    if (saltos === 2) return 1200;
+    return 1800;
+}
+
+function startBeaconTimer() {
+    stopBeaconTimer();
+    if (!state.beaconEnabled || state.selectedSat !== 'terrestrial') return;
+    var interval = state.beaconInterval || calcBeaconInterval(state.digipath);
+    _beaconTimer = setInterval(sendBeaconPacket, interval * 1000);
+}
+
+function stopBeaconTimer() {
+    if (_beaconTimer) {
+        clearInterval(_beaconTimer);
+        _beaconTimer = null;
+    }
+}
+
+function sendBeaconPacket() {
+    if (state.myCall === 'N0CALL') return;
+    var info;
+    if (state.beaconShareLocation) {
+        var st = state.stationSymbolTable || '/';
+        var sy = state.stationSymbolCode || '[';
+        info = formatAPRSPosition(state.myLat, state.myLon, sy, st, state.beaconMessage);
+    } else if (state.beaconMessage) {
+        info = '>' + sanitizeAPRSText(state.beaconMessage);
+    } else {
+        return;
+    }
+    var beaconDest = state.tocallPosTer;
+    var fullPacket = formatAPRSFrame(state.myCall, beaconDest, state.digipath, info);
+    addTerminalLine('tx', fullPacket);
+    if (state.tnc && state.tnc.connected) {
+        try {
+            var packet = {
+                infoField: info,
+                sourceCall: state.myCall,
+                destCall: beaconDest,
+                digipath: state.digipath,
+                fullPacket: fullPacket,
+            };
+            var ax25 = buildAX25Frame(packet);
+            state.tnc.send(ax25);
+        } catch (e) {
+            showToast(t('toast.beacon_tx_error') + ' ' + e.message, true);
+        }
+    }
+}
+
+function sendToSW(msg) {
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
+    navigator.serviceWorker.controller.postMessage(msg);
+}
+
+function clearTileCache() {
+    sendToSW({ type: 'CLEAR_TILE_CACHE' });
+    showToast(t('toast.tile_cache_cleared'));
+}
