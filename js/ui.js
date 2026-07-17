@@ -369,10 +369,6 @@ function sendQuickAction(action) {
     }
 }
 
-function buildAndSendPacket() {
-    if (state.macros.length) sendQuickAction(state.macros[0].id);
-}
-
 function addTerminalLine(type, message) {
     const terminal = document.getElementById('terminal');
     const ts = getUTCShort();
@@ -1104,10 +1100,10 @@ document.addEventListener('keydown', function(e) {
         const idx = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
         if (state.macros[idx]) sendQuickAction(state.macros[idx].id);
     }
-    // Ctrl+Enter -> TX rápido (macro[0])
+    // Ctrl+Enter -> macro[0] (CQ)
     if (e.ctrlKey && e.key === 'Enter') {
         e.preventDefault();
-        buildAndSendPacket();
+        if (state.macros.length) sendQuickAction(state.macros[0].id);
     }
 });
 
