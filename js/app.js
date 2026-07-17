@@ -45,7 +45,7 @@ const state = {
     heardStations: [],
     heardStationsLimit: 20,
     macros: DEFAULT_MACROS.map(m => ({...m})),
-    terrestrialMacrosEnabled: true,
+    terrestrialMacrosEnabled: false,
     satFreqOverrides: {},
     elevationOffset: 0,
     tnc: null,
@@ -274,7 +274,7 @@ function loadSettings() {
                 state.satFreqOverrides = s.satFreqOverrides || {};
                 state.elevationOffset = (s.elevationOffset !== undefined && s.elevationOffset !== null) ? s.elevationOffset : 0;
                 state.userSatellites = s.userSatellites || [];
-                state.terrestrialMacrosEnabled = s.terrestrialMacrosEnabled !== false;
+                state.terrestrialMacrosEnabled = s.terrestrialMacrosEnabled === true;
                 state.mapShowHeardSat = s.mapShowHeardSat !== undefined ? s.mapShowHeardSat : true;
                 state.mapShowHeardTer = s.mapShowHeardTer !== undefined ? s.mapShowHeardTer : true;
                 state.mapShowQSO = s.mapShowQSO !== undefined ? s.mapShowQSO : true;
