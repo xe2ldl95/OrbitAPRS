@@ -261,8 +261,13 @@ function sendQuickAction(action) {
     // APRS message formatting (type ':'): pad destination to 9 chars, optionally add {xxxx sequence
     if (info[0] === ':') {
         const secondColon = info.indexOf(':', 1);
+        // Validate: message macros require a non-empty destination
+        if (secondColon <= 1) {
+            showToast(t('toast.enter_target'), true);
+            return;
+        }
         let ackEnabled = false;
-        if (secondColon > 1 && secondColon < 12) {
+        if (secondColon < 12) {
             const dest = info.slice(1, secondColon);
             const body = info.slice(secondColon + 1);
             const msgIdMatch = body.match(/\{([a-zA-Z0-9]{1,4})$/);
@@ -271,10 +276,10 @@ function sendQuickAction(action) {
             const destBase = dest.split('-')[0].toUpperCase();
             ackEnabled = state.chatAck[destBase] === true;
             info = formatAPRSMessage(dest, msg, ackEnabled ? (msgId || String(state.msgIdCounter).padStart(2, '0')) : undefined);
-        }
-        if (ackEnabled && !/\{[a-zA-Z0-9]{1,4}$/.test(info)) {
-            const seq = String(state.msgIdCounter).padStart(2, '0');
-            info += '{' + seq;
+            if (ackEnabled && !/\{[a-zA-Z0-9]{1,4}$/.test(info)) {
+                const seq = String(state.msgIdCounter).padStart(2, '0');
+                info += '{' + seq;
+            }
         }
         state.msgIdCounter = (state.msgIdCounter % 99) + 1;
         persistSettings();
