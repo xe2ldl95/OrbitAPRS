@@ -1000,9 +1000,9 @@ document.addEventListener('keydown', function(e) {
         }
     }
     // Ctrl+Shift+1-9,0 -> macros[0-9] (alternativa sin F-keys)
-    if (e.ctrlKey && e.shiftKey && e.key >= '0' && e.key <= '9') {
+    if (e.ctrlKey && e.shiftKey && e.code.startsWith('Digit')) {
         e.preventDefault();
-        const idx = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
+        const idx = e.code === 'Digit0' ? 9 : parseInt(e.code.slice(5), 10) - 1;
         if (state.macros[idx]) sendQuickAction(state.macros[idx].id);
     }
     // Ctrl+Enter -> TX rápido (macro[0])
