@@ -1095,15 +1095,25 @@ document.addEventListener('keydown', function(e) {
         }
     }
     // Ctrl+Shift+1-9,0 -> macros[0-9] (alternativa sin F-keys)
-    if (e.ctrlKey && e.shiftKey && e.key >= '0' && e.key <= '9') {
+    if (e.ctrlKey && e.shiftKey && e.code.startsWith('Digit')) {
         e.preventDefault();
-        const idx = e.key === '0' ? 9 : parseInt(e.key, 10) - 1;
+        const idx = e.code === 'Digit0' ? 9 : parseInt(e.code.slice(5), 10) - 1;
         if (state.macros[idx]) sendQuickAction(state.macros[idx].id);
     }
     // Ctrl+Enter -> macro[0] (CQ)
     if (e.ctrlKey && e.key === 'Enter') {
         e.preventDefault();
         if (state.macros.length) sendQuickAction(state.macros[0].id);
+    }
+    // Left/Right -> switch tabs (only when not in text input)
+    if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') &&
+        !['INPUT', 'TEXTAREA'].includes(e.target.tagName)) {
+        e.preventDefault();
+        const tabs = ['terminal', 'map', 'nav', 'chat'];
+        const current = document.querySelector('.panel-tab.active')?.getAttribute('data-tab') || 'terminal';
+        const idx = tabs.indexOf(current);
+        const next = e.key === 'ArrowRight' ? (idx + 1) % tabs.length : (idx - 1 + tabs.length) % tabs.length;
+        switchTerminalTab(tabs[next]);
     }
 });
 
@@ -1629,9 +1639,21 @@ function initKeyboardHandlers() {
 
     if (targetInput) {
         targetInput.addEventListener('keydown', function(e) {
-            // Tab / Enter -> focus message input
-            if (e.key === 'Tab' || e.key === 'Enter') {
+            // Tab -> focus message input
+            if (e.key === 'Tab') {
                 e.preventDefault();
+                if (msgInput) msgInput.focus();
+                return;
+            }
+            // Enter -> if heard selected, set target; then focus message
+            if (e.key === 'Enter') {
+                const heard = state.heardStations || [];
+                if (_heardIdx >= 0 && _heardIdx < heard.length) {
+                    e.preventDefault();
+                    targetInput.value = heard[_heardIdx].call;
+                    _heardIdx = -1;
+                    renderHeardList();
+                }
                 if (msgInput) msgInput.focus();
                 return;
             }
@@ -1648,15 +1670,6 @@ function initKeyboardHandlers() {
                 _heardIdx = (_heardIdx + 1) % heard.length;
                 renderHeardList();
                 scrollHeardIntoView();
-            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                // Set callsign and move to message
-                if (_heardIdx >= 0 && _heardIdx < heard.length) {
-                    e.preventDefault();
-                    targetInput.value = heard[_heardIdx].call;
-                    _heardIdx = -1;
-                    renderHeardList();
-                    if (msgInput) msgInput.focus();
-                }
             }
         });
     }
