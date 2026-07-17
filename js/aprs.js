@@ -285,6 +285,14 @@ function decodeMicE(dest, info) {
     return result;
 }
 
+function _base91toInt(str) {
+    var v = 0;
+    for (var i = 0; i < str.length; i++) {
+        v = v * 91 + (str.charCodeAt(i) - 33);
+    }
+    return v;
+}
+
 function extractAPRSData(info, dest) {
     const result = { grid: null, lat: null, lon: null, comment: null };
     if (!info) return result;
@@ -315,6 +323,20 @@ function extractAPRSData(info, dest) {
             result.symbolTable = latLonMatch[2];
             const symIdx = latLonMatch.index + latLonMatch[0].length;
             if (symIdx < body.length) result.symbol = body[symIdx];
+        }
+        // Compressed format: /YYYYXXXX$tc  (4 bytes lat, 4 bytes lon, sym table, sym code)
+        else if (body.length >= 11 && body[0] === '/') {
+            const comp = body.match(/^\/(.{4})(.{4})(.)(.).*/);
+            if (comp) {
+                const latVal = _base91toInt(comp[1]);
+                const lonVal = _base91toInt(comp[2]);
+                result.lat = latVal <= 380926 ? 90 - latVal / 380926 : latVal / 380926 - 90;
+                result.lon = lonVal <= 190463 ? 180 - lonVal / 190463 : lonVal / 190463 - 180;
+                result.lat = Math.min(90, Math.max(-90, result.lat));
+                result.lon = Math.min(180, Math.max(-180, result.lon));
+                result.symbolTable = comp[3];
+                result.symbol = comp[4];
+            }
         }
         const gridMatch = info.match(/\[(\w{4,6})\]/);
         if (gridMatch) result.grid = gridMatch[1].toUpperCase();

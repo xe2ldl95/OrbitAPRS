@@ -85,12 +85,12 @@ function confirmAck(target, msgId) {
 
 function sendRejResponse(sourceCall, msgId) {
     var info = ':' + sourceCall.padEnd(9, ' ') + ':rej' + msgId;
-    var fullPacket = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, info);
+    var fullPacket = formatAPRSFrame(state.myCall, state.tocallMsgTer, state.digipath, info);
     if (state.tnc && state.tnc.connected) {
         try {
             var ax25 = buildAX25Frame({
                 infoField: info, sourceCall: state.myCall,
-                destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: fullPacket,
+                destCall: state.tocallMsgTer, digipath: state.digipath, fullPacket: fullPacket,
             });
             state.tnc.send(ax25);
             addTerminalLine('tx', fullPacket);
@@ -599,12 +599,12 @@ function tncConnect() {
             if (msgId && Date.now() - lastAck > 10000) {
                 _recentAcked[ackKey] = Date.now();
                 var ackInfo = ':' + pkt.source.padEnd(9, ' ') + ':ack' + msgId;
-                var ackFull = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, ackInfo);
+                var ackFull = formatAPRSFrame(state.myCall, state.tocallMsgTer, state.digipath, ackInfo);
                 if (state.tnc && state.tnc.connected) {
                     try {
                         var ackPacket = buildAX25Frame({
                             infoField: ackInfo, sourceCall: state.myCall,
-                            destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: ackFull,
+                            destCall: state.tocallMsgTer, digipath: state.digipath, fullPacket: ackFull,
                         });
                         state.tnc.send(ackPacket);
                         addTerminalLine('tx', ackFull);
@@ -647,12 +647,12 @@ function tncConnect() {
                     if (tpMsgId && Date.now() - tpLastAck > 10000) {
                         _recentAcked[tpAckKey] = Date.now();
                         var tpAckInfo = ':' + tp.src.padEnd(9, ' ') + ':ack' + tpMsgId;
-                        var tpAckFull = formatAPRSFrame(state.myCall, state.tocallPosTer, state.digipath, tpAckInfo);
+                        var tpAckFull = formatAPRSFrame(state.myCall, state.tocallMsgTer, state.digipath, tpAckInfo);
                         if (state.tnc && state.tnc.connected) {
                             try {
                                 var tpAckPacket = buildAX25Frame({
                                     infoField: tpAckInfo, sourceCall: state.myCall,
-                                    destCall: state.tocallPosTer, digipath: state.digipath, fullPacket: tpAckFull,
+                                    destCall: state.tocallMsgTer, digipath: state.digipath, fullPacket: tpAckFull,
                                 });
                                 state.tnc.send(tpAckPacket);
                                 addTerminalLine('tx', tpAckFull);

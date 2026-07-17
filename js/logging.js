@@ -5,7 +5,8 @@ function msgDestIsForUs(info) {
     var dest = info.slice(1, secondColon).trim().toUpperCase();
     var myBase = state.myCall.split('-')[0].toUpperCase();
     var destBase = dest.split('-')[0].toUpperCase();
-    return destBase === myBase;
+    // Also accept bulletins (BLN0..BLN9) and announcements (ANNC)
+    return destBase === myBase || /^BLN\d$/.test(destBase) || destBase === 'ANNC';
 }
 
 function logPacketFromTNC(parsed) {
